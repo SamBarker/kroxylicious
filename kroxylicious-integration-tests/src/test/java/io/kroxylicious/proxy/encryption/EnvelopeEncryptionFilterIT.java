@@ -130,7 +130,7 @@ class EnvelopeEncryptionFilterIT {
         return IntegrationTestingKmsService.newInstance().buildKms(new IntegrationTestingKmsService.Config(kmsId.toString()));
     }
 
-    private KekId<UUID> generateKekWithAlias(InMemoryKms kms) {
+    private KekId generateKekWithAlias(InMemoryKms kms) {
         var kekId = kms.generateKey();
         kms.createAlias(kekId, "all");
         return kekId;
