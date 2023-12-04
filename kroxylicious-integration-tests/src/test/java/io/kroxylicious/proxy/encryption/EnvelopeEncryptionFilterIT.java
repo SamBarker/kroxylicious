@@ -30,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.kroxylicious.filter.encryption.TemplateKekSelector;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.InMemoryKms;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.IntegrationTestingKmsService;
+import io.kroxylicious.kms.service.KekId;
 import io.kroxylicious.proxy.config.FilterDefinition;
 import io.kroxylicious.proxy.config.FilterDefinitionBuilder;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -129,7 +130,7 @@ class EnvelopeEncryptionFilterIT {
         return IntegrationTestingKmsService.newInstance().buildKms(new IntegrationTestingKmsService.Config(kmsId.toString()));
     }
 
-    private UUID generateKekWithAlias(InMemoryKms kms) {
+    private KekId<UUID> generateKekWithAlias(InMemoryKms kms) {
         var kekId = kms.generateKey();
         kms.createAlias(kekId, "all");
         return kekId;
