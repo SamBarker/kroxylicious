@@ -23,4 +23,10 @@ public interface KekId {
     <K> K getId(Class<K> keyType);
 
     void serializeTo(ByteBuffer buffer);
+
+    /**
+     * Returns the number of bytes required to serialize the given object.
+     * @return the number of bytes required to serialize the given object.
+     */
+    int serializedSize();
 }

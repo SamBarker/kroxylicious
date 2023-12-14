@@ -231,6 +231,11 @@ class EnvelopeEncryptionFilterTest {
             public void serializeTo(ByteBuffer buffer) {
                 throw new UnsupportedOperationException("Dummy test impl");
             }
+
+            @Override
+            public int serializedSize() {
+                return 0;
+            }
         });
         topicNameToKekId.put(ENCRYPTED_TOPIC, new KekId() {
             @SuppressWarnings("unchecked")
@@ -241,6 +246,11 @@ class EnvelopeEncryptionFilterTest {
 
             @Override
             public void serializeTo(ByteBuffer buffer) {
+                throw new UnsupportedOperationException("Dummy test impl");
+            }
+
+            @Override
+            public int serializedSize() {
                 throw new UnsupportedOperationException("Dummy test impl");
             }
         });

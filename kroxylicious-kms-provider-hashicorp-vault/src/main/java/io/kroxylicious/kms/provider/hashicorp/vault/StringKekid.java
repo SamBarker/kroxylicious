@@ -10,12 +10,13 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 import io.kroxylicious.kms.service.KekId;
 import io.kroxylicious.kms.service.KmsException;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 import static org.apache.kafka.common.utils.ByteUtils.writeUnsignedVarint;
+import static org.apache.kafka.common.utils.Utils.utf8Length;
 
 public record StringKekid(@NonNull String keyId) implements KekId {
 
@@ -40,4 +41,8 @@ public record StringKekid(@NonNull String keyId) implements KekId {
 
     }
 
+    @Override
+    public int serializedSize() {
+        return utf8Length(keyId);
+    }
 }

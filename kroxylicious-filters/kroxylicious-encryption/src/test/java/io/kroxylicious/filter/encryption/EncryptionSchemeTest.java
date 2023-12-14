@@ -51,5 +51,10 @@ class EncryptionSchemeTest {
         public void serializeTo(ByteBuffer buffer) {
             // No Op?
         }
+
+        @Override
+        public int serializedSize() {
+            return 0;
+        }
     }
 }

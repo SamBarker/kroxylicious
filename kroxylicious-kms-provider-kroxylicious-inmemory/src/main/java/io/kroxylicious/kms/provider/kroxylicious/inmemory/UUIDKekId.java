@@ -34,4 +34,9 @@ public record UUIDKekId(@NonNull UUID keyId) implements KekId {
     public void serializeTo(ByteBuffer buffer) {
         UUIDKekIdSerde.instance().serialize(this, buffer);
     }
+
+    @Override
+    public int serializedSize() {
+        return UUIDKekIdSerde.instance().sizeOf(this);
+    }
 }
