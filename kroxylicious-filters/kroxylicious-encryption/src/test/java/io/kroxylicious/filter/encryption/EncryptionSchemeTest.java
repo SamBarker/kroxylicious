@@ -6,6 +6,7 @@
 
 package io.kroxylicious.filter.encryption;
 
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,11 @@ class EncryptionSchemeTest {
         @Override
         public <K> K getId(Class<K> keyType) {
             return (K) kekId;
+        }
+
+        @Override
+        public void serializeTo(ByteBuffer buffer) {
+            // No Op?
         }
     }
 }

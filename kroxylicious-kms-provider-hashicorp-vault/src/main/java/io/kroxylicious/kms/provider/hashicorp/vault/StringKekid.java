@@ -6,12 +6,16 @@
 
 package io.kroxylicious.kms.provider.hashicorp.vault;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import io.kroxylicious.kms.service.KekId;
 import io.kroxylicious.kms.service.KmsException;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import static org.apache.kafka.common.utils.ByteUtils.writeUnsignedVarint;
 
 public record StringKekid(@NonNull String keyId) implements KekId {
 
@@ -26,6 +30,14 @@ public record StringKekid(@NonNull String keyId) implements KekId {
             throw new KmsException("Unsupported keyType (" + keyType + ") requested. Only Strings are supported");
         }
         return (K) this.keyId;
+    }
+
+    @Override
+    public void serializeTo(ByteBuffer buffer) {
+        var keyRefBuf = keyId.getBytes(StandardCharsets.UTF_8);
+        writeUnsignedVarint(keyRefBuf.length, buffer);
+        buffer.put(keyRefBuf);
+
     }
 
 }

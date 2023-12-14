@@ -6,6 +6,8 @@
 
 package io.kroxylicious.kms.service;
 
+import java.nio.ByteBuffer;
+
 /**
  * A semantic wrapper around KMS specific key id type
  */
@@ -19,4 +21,6 @@ public interface KekId {
      * @return the underlying key ID
      */
     <K> K getId(Class<K> keyType);
+
+    void serializeTo(ByteBuffer buffer);
 }

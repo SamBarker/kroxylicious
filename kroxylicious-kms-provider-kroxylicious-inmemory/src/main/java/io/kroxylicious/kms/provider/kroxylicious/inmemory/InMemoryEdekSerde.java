@@ -52,7 +52,7 @@ class InMemoryEdekSerde implements Serde<InMemoryEdek> {
         Serde.putUnsignedByte(buffer, inMemoryEdek.numAuthBits());
         Serde.putUnsignedByte(buffer, inMemoryEdek.iv().length);
         buffer.put(inMemoryEdek.iv());
-        uuidSerde.serialize(inMemoryEdek.kekRef(), buffer);
+        inMemoryEdek.kekRef().serializeTo(buffer);
         buffer.put(inMemoryEdek.edek());
     }
 }

@@ -226,12 +226,22 @@ class EnvelopeEncryptionFilterTest {
             public <K> K getId(Class<K> keyType) {
                 throw new UnsupportedOperationException("no key id specified");
             }
+
+            @Override
+            public void serializeTo(ByteBuffer buffer) {
+                throw new UnsupportedOperationException("Dummy test impl");
+            }
         });
         topicNameToKekId.put(ENCRYPTED_TOPIC, new KekId() {
             @SuppressWarnings("unchecked")
             @Override
             public <K> K getId(Class<K> keyType) {
                 return (K) KEK_ID_1;
+            }
+
+            @Override
+            public void serializeTo(ByteBuffer buffer) {
+                throw new UnsupportedOperationException("Dummy test impl");
             }
         });
         return topicNameToKekId;

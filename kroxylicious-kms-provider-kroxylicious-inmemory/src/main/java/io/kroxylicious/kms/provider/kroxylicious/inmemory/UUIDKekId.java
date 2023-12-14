@@ -6,6 +6,7 @@
 
 package io.kroxylicious.kms.provider.kroxylicious.inmemory;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -27,5 +28,10 @@ public record UUIDKekId(@NonNull UUID keyId) implements KekId {
             throw new KmsException("Unsupported keyType (" + keyType + ") requested. Only UUID's are supported");
         }
         return (K) this.keyId;
+    }
+
+    @Override
+    public void serializeTo(ByteBuffer buffer) {
+        UUIDKekIdSerde.instance().serialize(this, buffer);
     }
 }
