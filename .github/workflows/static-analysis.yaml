@@ -47,16 +47,17 @@ jobs:
           git checkout -B ${{ fromJson(steps.get_pr_data.outputs.data).base.ref }} upstream/${{ fromJson(steps.get_pr_data.outputs.data).base.ref }}
           git checkout ${{ github.event.workflow_run.head_branch }}
           git clean -ffdx && git reset --hard HEAD
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@2.0.0
+      - name: shellcheck
+        uses: reviewdog/action-shellcheck@v1
         with:
-# don't check copies in build directories (if they are included)
-          ignore_paths: "**/target"
-          severity: error
-          format: checkstyle
-      - uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: '**/checkstyle-result.xml'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review # Change reporter.
+          path: "." # Optional.
+          pattern: "*.sh" # Optional.
+          exclude: |
+            "./.git/*" 
+            "**/target"
+          check_all_files_with_shebangs: "false" # Optional.
   Sonar:
     runs-on: ubuntu-latest
     if: github.event.workflow_run && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
