@@ -3,11 +3,12 @@ name: Static Analysis
 on:
   workflow_run:
     workflows: [Build]
-    types: [requested]
+    types: [completed]
 
 jobs:
   shellcheck:
     name: Shellcheck
+    if: github.event.workflow_run && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Download PR number artifact
@@ -54,6 +55,7 @@ jobs:
           path: '**/checkstyle-result.xml'
   Sonar:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     steps:
       - name: echo event
         run: cat $GITHUB_EVENT_PATH
