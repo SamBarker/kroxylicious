@@ -602,4 +602,4 @@ fi
 
 SUBSHELL=$(echo "wibble")
 
-run $@
+run "$@"
