@@ -1,4 +1,4 @@
-name: Sonar Scan
+name: Static Analysis
 
 on:
   workflow_run:
