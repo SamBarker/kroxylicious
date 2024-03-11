@@ -58,9 +58,8 @@ on:
         default: true
 
 jobs:
-  build:
+  stage_release:
     runs-on: ubuntu-latest
-
     steps:
       - name: 'Check out repository'
         uses: actions/checkout@v4
@@ -132,3 +131,36 @@ jobs:
           SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
           SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -s close
+  validate:
+    if: ${{ success() && "${{ inputs.dry-run }}" != true}}
+    needs: stage_release
+    runs-on: ubuntu-latest
+
+    steps:
+       - name: 'Check out repository'
+         uses: actions/checkout@v4
+         with:
+           ref: v${{ github.event.inputs.release-version }}
+           token: ${{ secrets.KROXYLICIOUS_RELEASE_TOKEN }}
+       - name: 'Cache Maven packages'
+         uses: actions/cache@v4
+         with:
+           path: ~/.m2
+           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+           restore-keys: ${{ runner.os }}-m2
+
+       - name: 'Set up Java'
+         uses: actions/setup-java@v4
+         with:
+           java-version: 21
+           distribution: temurin
+           server-id: ossrh
+           server-username: SONATYPE_TOKEN_USERNAME # env variable for Sonatype username
+           server-password: SONATYPE_TOKEN_PASSWORD # env variable for Sonatype password
+           overwrite-settings: true
+       - uses: s4u/maven-settings-action@v3.0.0
+         with:
+           repositories: '{"id": "central-staging", "url": "https://s01.oss.sonatype.org/content/repositories/staging/", "snapshots": {"enabled": false}}, "releases": {"enabled": true}}'
+       - name: 'build sample against staged release'
+         run: "mvn clean verify -U -pl :kroxylicious-sample"
+
