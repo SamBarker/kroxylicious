@@ -6,6 +6,8 @@
 
 package io.kroxylicious.kubernetes.operator;
 
+import java.util.concurrent.TimeUnit;
+
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,8 +19,6 @@ import io.javaoperatorsdk.operator.OperatorException;
 import io.javaoperatorsdk.operator.junit.LocallyRunOperatorExtension;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.search.MeterNotFoundException;
-
-import java.util.concurrent.TimeUnit;
 
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxy;
 import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaCluster;
