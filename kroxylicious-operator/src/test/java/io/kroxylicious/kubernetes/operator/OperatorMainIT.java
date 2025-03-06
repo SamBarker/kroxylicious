@@ -102,7 +102,7 @@ class OperatorMainIT {
                                     .getMeters()
                                     .stream()
                                     .map(meter -> meter.getId().getName())
-                                    .collect(Collectors.joining()));
+                                    .collect(Collectors.joining(", ", "[", "]")));
                     assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull();
                 });
     }
