@@ -7,6 +7,7 @@
 package io.kroxylicious.kubernetes.operator;
 
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -96,7 +97,12 @@ class OperatorMainIT {
                 .atMost(10, TimeUnit.SECONDS)
                 .ignoreException(MeterNotFoundException.class)
                 .untilAsserted(() -> {
-                    log.info("looking for `\"operator.sdk.events.received\"` in meters: {}", operatorMain.getRegistry().getMeters());
+                    log.info("looking for `\"operator.sdk.events.received\"` in meters: {}",
+                            operatorMain.getRegistry()
+                                    .getMeters()
+                                    .stream()
+                                    .map(meter -> meter.getId().getName())
+                                    .collect(Collectors.joining()));
                     assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull();
                 });
     }
