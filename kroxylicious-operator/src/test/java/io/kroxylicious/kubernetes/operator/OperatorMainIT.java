@@ -95,7 +95,7 @@ class OperatorMainIT {
         Awaitility.await()
                 .atMost(10, TimeUnit.SECONDS)
                 .ignoreException(MeterNotFoundException.class)
-                .untilAsserted(() ->  {
+                .untilAsserted(() -> {
                     log.info("looking for `\"operator.sdk.events.received\"` in meters: {}", operatorMain.getRegistry().getMeters());
                     assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull();
                 });
