@@ -102,6 +102,7 @@ class OperatorMainIT {
                                     .getMeters()
                                     .stream()
                                     .map(meter -> meter.getId().getName())
+                                    .distinct()
                                     .collect(Collectors.joining(", ", "[", "]")));
                     assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull();
                 });
