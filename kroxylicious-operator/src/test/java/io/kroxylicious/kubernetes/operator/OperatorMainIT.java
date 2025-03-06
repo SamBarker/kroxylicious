@@ -94,14 +94,11 @@ class OperatorMainIT {
         // Then
         Awaitility.await()
                 .atMost(10, TimeUnit.SECONDS)
-                .conditionEvaluationListener(condition -> {
-                    if (!condition.isSatisfied()) {
-                        log.info("failed to find `\"operator.sdk.events.received\"` current meters are: {}", operatorMain.getRegistry().getMeters());
-                    }
-                })
                 .ignoreException(MeterNotFoundException.class)
-
-                .untilAsserted(() -> assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull());
+                .untilAsserted(() ->  {
+                    log.info("looking for `\"operator.sdk.events.received\"` in meters: {}", operatorMain.getRegistry().getMeters());
+                    assertThat(operatorMain.getRegistry().get("operator.sdk.events.received").meter().getId()).isNotNull();
+                });
     }
 
     @Test
