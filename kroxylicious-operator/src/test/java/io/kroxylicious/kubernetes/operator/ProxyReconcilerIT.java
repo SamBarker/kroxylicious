@@ -99,11 +99,6 @@ class ProxyReconcilerIT {
             .withConfigurationService(x -> x.withCloseClientOnStop(false))
             .build();
 
-    @AfterEach
-    void stopOperator() {
-        extension.getOperator().stop();
-    }
-
     @Test
     void testCreate() {
         doCreate();
