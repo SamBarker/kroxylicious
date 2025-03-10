@@ -15,11 +15,10 @@ import java.util.Set;
 
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ObjectAssert;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import io.fabric8.kubernetes.api.model.GenericKubernetesResource;
 import io.fabric8.kubernetes.api.model.GenericKubernetesResourceBuilder;
@@ -54,6 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class ProxyReconcilerTest {
 
     @Mock
@@ -61,18 +61,6 @@ class ProxyReconcilerTest {
 
     @Mock
     ManagedDependentResourceContext mdrc;
-
-    private AutoCloseable closeable;
-
-    @BeforeEach
-    public void openMocks() {
-        closeable = MockitoAnnotations.openMocks(this);
-    }
-
-    @AfterEach
-    public void releaseMocks() throws Exception {
-        closeable.close();
-    }
 
     @Test
     void successfulInitialReconciliationShouldResultInReadyTrueCondition() {
@@ -332,7 +320,6 @@ class ProxyReconcilerTest {
         doReturn(Optional.of(Map.of("my-cluster", ClusterCondition.filterNotFound("my-cluster", "MissingFilter")))).when(mdrc).get(
                 SharedKafkaProxyContext.CLUSTER_CONDITIONS_KEY,
                 Map.class);
-        doReturn(new RuntimeDecl(List.of())).when(mdrc).getMandatory(SharedKafkaProxyContext.RUNTIME_DECL_KEY, Map.class);
 
         // When
         var updateControl = new ProxyReconciler(new RuntimeDecl(List.of())).reconcile(primary, context);
