@@ -15,12 +15,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.assertj.core.api.AbstractStringAssert;
-import org.assertj.core.api.Assumptions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.core.ConditionFactory;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,12 +42,14 @@ import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaCluster;
 import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaClusterBuilder;
 import io.kroxylicious.kubernetes.api.v1alpha1.virtualkafkaclusterspec.targetcluster.ClusterRef;
 import io.kroxylicious.kubernetes.api.v1alpha1.virtualkafkaclusterspec.targetcluster.ClusterRefBuilder;
+import io.kroxylicious.kubernetes.filter.api.v1alpha1.KafkaProtocolFilter;
 import io.kroxylicious.kubernetes.operator.config.RuntimeDecl;
 
 import static io.kroxylicious.kubernetes.operator.ResourcesUtil.findOnlyResourceNamed;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@EnabledIf(value = "io.kroxylicious.kubernetes.operator.OperatorTestUtils#isKubeClientAvailable", disabledReason = "no viable kube client available")
 class ProxyReconcilerIT {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProxyReconcilerIT.class);
@@ -71,8 +73,17 @@ class ProxyReconcilerIT {
     @BeforeAll
     static void checkKubeAvailable() {
         client = OperatorTestUtils.kubeClientIfAvailable();
-        Assumptions.assumeThat(client).describedAs("Test requires a viable kube client").isNotNull();
         preloadOperatorImage();
+    }
+
+    @AfterAll
+    static void afterAll() {
+        if (client != null) {
+            client.resources(KafkaProtocolFilter.class).delete();
+            client.resources(KafkaProxy.class).delete();
+            client.resources(VirtualKafkaCluster.class).delete();
+            client.resources(KafkaClusterRef.class).delete();
+        }
     }
 
     // the initial operator image pull can take a long time and interfere with the tests
@@ -90,10 +101,11 @@ class ProxyReconcilerIT {
     @RegisterExtension
     LocallyRunOperatorExtension extension = LocallyRunOperatorExtension.builder()
             .withReconciler(new ProxyReconciler(new RuntimeDecl(List.of(
-            // new FilterKindDecl("filter.kroxylicious.io", "v1alpha1", "RecordEncryption", "io.kroxylicious.filter.encryption.RecordEncryption")
+                    // new FilterKindDecl("filter.kroxylicious.io", "v1alpha1", "RecordEncryption", "io.kroxylicious.filter.encryption.RecordEncryption")
             ))))
             .withKubernetesClient(client)
             .withAdditionalCustomResourceDefinition(VirtualKafkaCluster.class)
+            .withAdditionalCustomResourceDefinition(KafkaProtocolFilter.class)
             .withAdditionalCustomResourceDefinition(KafkaClusterRef.class)
             .waitForNamespaceDeletion(true)
             .withConfigurationService(x -> x.withCloseClientOnStop(false))
