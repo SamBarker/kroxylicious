@@ -15,13 +15,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import io.fabric8.kubernetes.api.model.GenericKubernetesResource;
-
 import io.kroxylicious.kubernetes.api.common.FilterRef;
 import io.kroxylicious.kubernetes.api.common.LocalRef;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaClusterRef;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngress;
 import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaCluster;
+import io.kroxylicious.kubernetes.filter.api.v1alpha1.KafkaProtocolFilter;
 import io.kroxylicious.kubernetes.operator.ResourcesUtil;
 
 import static java.util.Comparator.comparing;
@@ -32,7 +31,7 @@ import static java.util.Comparator.comparing;
  * describes which dependencies could not be resolved per VirtualKafkaCluster.
  */
 public class ResolutionResult {
-    private final Map<LocalRef<GenericKubernetesResource>, GenericKubernetesResource> filters;
+    private final Map<LocalRef<KafkaProtocolFilter>, KafkaProtocolFilter> filters;
     private final Map<LocalRef<KafkaProxyIngress>, KafkaProxyIngress> kafkaProxyIngresses;
     private final Map<LocalRef<KafkaClusterRef>, KafkaClusterRef> kafkaClusterRefs;
     private final Map<String, ClusterResolutionResult> clusterResolutionResults;
@@ -60,7 +59,7 @@ public class ResolutionResult {
 
     }
 
-    ResolutionResult(Map<LocalRef<GenericKubernetesResource>, GenericKubernetesResource> filters,
+    ResolutionResult(Map<LocalRef<KafkaProtocolFilter>, KafkaProtocolFilter> filters,
                      Map<LocalRef<KafkaProxyIngress>, KafkaProxyIngress> kafkaProxyIngresses,
                      Map<LocalRef<KafkaClusterRef>, KafkaClusterRef> kafkaClusterRefs,
                      Map<String, ClusterResolutionResult> clusterResolutionResults) {
@@ -134,7 +133,7 @@ public class ResolutionResult {
      * Get all resolved Filters
      * @return filters
      */
-    public Collection<GenericKubernetesResource> filters() {
+    public Collection<KafkaProtocolFilter> filters() {
         return filters.values();
     }
 
@@ -142,7 +141,7 @@ public class ResolutionResult {
      * Get the resolved GenericKubernetesResource for a filterRef
      * @return optional containing the resource if resolved, else empty
      */
-    public Optional<GenericKubernetesResource> filter(FilterRef filterRef) {
+    public Optional<KafkaProtocolFilter> filter(FilterRef filterRef) {
         return filters().stream()
                 .filter(filterResource -> {
                     String apiVersion = filterResource.getApiVersion();
