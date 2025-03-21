@@ -364,7 +364,9 @@
                         <io.kroxylicious.kubernetes.api.v1alpha1.KafkaServiceStatus>
                             io.kroxylicious.kubernetes.api.common.status.CommonStatus
                         </io.kroxylicious.kubernetes.api.v1alpha1.KafkaServiceStatus>
-
+                        <io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngressStatus>
+                            io.kroxylicious.kubernetes.api.common.status.CommonStatus
+                        </io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngressStatus>
                     </existingJavaTypes>
                     <packageOverrides>
                         <!-- the default package name ($apiGroup.$apiVersion) doesn't work for us -->
