@@ -13,15 +13,15 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ListAssert;
 
 import io.kroxylicious.kubernetes.api.common.Condition;
-import io.kroxylicious.kubernetes.api.v1alpha1.KafkaServiceStatus;
+import io.kroxylicious.kubernetes.api.common.status.CommonStatus;
 
-public class KafkaServiceStatusAssert extends AbstractObjectAssert<KafkaServiceStatusAssert, KafkaServiceStatus> {
+public class KafkaServiceStatusAssert extends AbstractObjectAssert<KafkaServiceStatusAssert, CommonStatus> {
     protected KafkaServiceStatusAssert(
-                                       KafkaServiceStatus o) {
+                                       CommonStatus o) {
         super(o, KafkaServiceStatusAssert.class);
     }
 
-    public static KafkaServiceStatusAssert assertThat(KafkaServiceStatus actual) {
+    public static KafkaServiceStatusAssert assertThat(CommonStatus actual) {
         return new KafkaServiceStatusAssert(actual);
     }
 
