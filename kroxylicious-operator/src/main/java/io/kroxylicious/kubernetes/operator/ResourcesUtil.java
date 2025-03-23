@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
 import io.fabric8.kubernetes.api.model.OwnerReference;
 import io.fabric8.kubernetes.api.model.OwnerReferenceBuilder;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
@@ -223,5 +225,13 @@ public class ResourcesUtil {
                 referent,
                 owner,
                 primary -> ResourcesUtil.isReferent(refAccessor.apply(primary), referent));
+    }
+
+    public static <R extends HasMetadata> ObjectMeta coordianteMetadata(R resource) {
+        return new ObjectMetaBuilder()
+                .withName(ResourcesUtil.name(resource))
+                .withNamespace(ResourcesUtil.namespace(resource))
+                .withUid(ResourcesUtil.uid(resource))
+                .build();
     }
 }

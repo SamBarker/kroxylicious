@@ -10,12 +10,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
+import io.fabric8.kubernetes.api.model.GenericKubernetesResource;
 import io.fabric8.kubernetes.api.model.GenericKubernetesResourceBuilder;
 import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.SecretBuilder;
 
@@ -35,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ResourcesUtilTest {
 
     public static final String RESOURCE_NAME = "name";
+    public static final String NAMESPACE = "ns1";
 
     @Test
     void rfc1035DnsLabel() {
@@ -173,4 +177,44 @@ class ResourcesUtilTest {
                 .isEqualTo(new FilterRefBuilder().withName("foo").build());
     }
 
+    @Test
+    void shouldCopyCoordinates() {
+        // Given
+        final String resourceUuid = UUID.randomUUID().toString();
+        final GenericKubernetesResource existingResource = new GenericKubernetesResourceBuilder()
+                .withNewMetadata()
+                .withNamespace(NAMESPACE)
+                .withName(RESOURCE_NAME)
+                .withUid(resourceUuid)
+                .endMetadata()
+                .build();
+
+        // When
+        ObjectMeta metadata = ResourcesUtil.coordianteMetadata(existingResource);
+
+        // Then
+        assertThat(metadata.getNamespace()).isEqualTo(NAMESPACE);
+        assertThat(metadata.getName()).isEqualTo(RESOURCE_NAME);
+        assertThat(metadata.getUid()).isEqualTo(resourceUuid);
+    }
+
+    @Test
+    void shouldNotCopyLabels() {
+        // Given
+        final String resourceUuid = UUID.randomUUID().toString();
+        final GenericKubernetesResource existingResource = new GenericKubernetesResourceBuilder()
+                .withNewMetadata()
+                .withNamespace(NAMESPACE)
+                .withName(RESOURCE_NAME)
+                .withUid(resourceUuid)
+                .withLabels(Map.of("label1", "v1", "label2", "v2"))
+                .endMetadata()
+                .build();
+
+        // When
+        ObjectMeta metadata = ResourcesUtil.coordianteMetadata(existingResource);
+
+        // Then
+        assertThat(metadata.getLabels()).isEmpty();
+    }
 }
