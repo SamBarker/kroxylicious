@@ -143,11 +143,7 @@ public class KafkaProxyReconciler implements
         var now = ZonedDateTime.now(ZoneId.of("Z"));
         // @formatter:off
         return new KafkaProxyBuilder()
-                .withNewMetadata()
-                    .withName(ResourcesUtil.name(primary))
-                    .withNamespace(ResourcesUtil.namespace(primary))
-                    .withUid(ResourcesUtil.uid(primary))
-                .endMetadata()
+                .withMetadata(ResourcesUtil.coordianteMetadata(primary))
                 .withNewStatus()
                     .withObservedGeneration(generation(primary))
                     .withConditions(effectiveReadyCondition(now, primary, exception ))
