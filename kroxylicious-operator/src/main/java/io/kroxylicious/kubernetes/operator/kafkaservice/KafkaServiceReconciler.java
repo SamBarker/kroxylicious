@@ -58,7 +58,7 @@ public final class KafkaServiceReconciler implements
     private static KafkaService newServiceWithCondition(KafkaService resource, Condition acceptedCondition) {
         // @formatter:off
         return new KafkaServiceBuilder()
-                .withMetadata(ResourcesUtil.coordianteMetadata(resource))
+                .withMetadata(ResourcesUtil.coordinatesMetadata(resource))
                 .withNewStatus()
                     .withObservedGeneration(resource.getMetadata().getGeneration())
                     .withConditions(acceptedCondition)

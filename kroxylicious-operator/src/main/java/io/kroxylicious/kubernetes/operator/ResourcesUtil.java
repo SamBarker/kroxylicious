@@ -227,7 +227,13 @@ public class ResourcesUtil {
                 primary -> ResourcesUtil.isReferent(refAccessor.apply(primary), referent));
     }
 
-    public static <R extends HasMetadata> ObjectMeta coordianteMetadata(R resource) {
+    /**
+     * Generates the minimal set of metadata require for ServerSideApply that is the co-ordinates of the resource.
+     * @param resource the resource we want to copy the Co-ordinates from
+     * @return An ObjectMeta with the co-ordinates specified (and nothing else)
+     * @param <R> the type source resource (with existing Metadata) to copy the co-ordinates from.
+     */
+    public static <R extends HasMetadata> ObjectMeta coordinatesMetadata(R resource) {
         return new ObjectMetaBuilder()
                 .withName(ResourcesUtil.name(resource))
                 .withNamespace(ResourcesUtil.namespace(resource))

@@ -98,7 +98,7 @@ public class KafkaProxyIngressReconciler implements
     private static KafkaProxyIngress newIngressWithCondition(KafkaProxyIngress ingress, Condition condition) {
         // @formatter:off
         return new KafkaProxyIngressBuilder()
-                    .withMetadata(ResourcesUtil.coordianteMetadata(ingress))
+                    .withMetadata(ResourcesUtil.coordinatesMetadata(ingress))
                     .withNewStatus()
                         .withObservedGeneration(ingress.getMetadata().getGeneration())
                         .withConditions(condition) // overwrite any existing conditions

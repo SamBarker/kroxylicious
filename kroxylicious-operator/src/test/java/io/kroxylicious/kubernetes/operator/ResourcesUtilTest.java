@@ -190,7 +190,7 @@ class ResourcesUtilTest {
                 .build();
 
         // When
-        ObjectMeta metadata = ResourcesUtil.coordianteMetadata(existingResource);
+        ObjectMeta metadata = ResourcesUtil.coordinatesMetadata(existingResource);
 
         // Then
         assertThat(metadata.getNamespace()).isEqualTo(NAMESPACE);
@@ -212,7 +212,7 @@ class ResourcesUtilTest {
                 .build();
 
         // When
-        ObjectMeta metadata = ResourcesUtil.coordianteMetadata(existingResource);
+        ObjectMeta metadata = ResourcesUtil.coordinatesMetadata(existingResource);
 
         // Then
         assertThat(metadata.getLabels()).isEmpty();
