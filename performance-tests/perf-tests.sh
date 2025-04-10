@@ -113,7 +113,8 @@ deleteAsyncProfilerKroxy() {
 }
 
 dumpBrokerLogs() {
-  ${CONTAINER_ENGINE} logs kafka > "${LOGS_OUTPUT_DIRECTORY}/broker.log"
+  TESTNAME=$1
+  ${CONTAINER_ENGINE} logs kafka > "${LOGS_OUTPUT_DIRECTORY}/${TESTNAME}_broker.log"
 }
 
 startAsyncProfilerKroxy() {
@@ -265,7 +266,7 @@ trap onExit EXIT
 
 TMP=$(mktemp -d)
 ON_SHUTDOWN+=("rm -rf ${TMP}")
-ON_SHUTDOWN+=("dumpBrokerLogs")
+#ON_SHUTDOWN+=("dumpBrokerLogs")
 
 # Bring up Kafka
 ON_SHUTDOWN+=("runDockerCompose down")
@@ -304,6 +305,8 @@ do
 
   PRODUCER_RESULTS+=("${PRODUCER_RESULT}")
   CONSUMER_RESULTS+=("${CONSUMER_RESULT}")
+
+  dumpBrokerLogs ${TESTNAME}
 done
 
 # Summarise results
