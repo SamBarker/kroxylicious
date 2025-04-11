@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -60,9 +61,9 @@ public record Configuration(
                             @Nullable @JsonAlias("adminHttp") @JsonDeserialize(using = AdminHttpDeprecationLoggingDeserializer.class) ManagementConfiguration management,
                             @Nullable List<NamedFilterDefinition> filterDefinitions,
                             @Nullable List<String> defaultFilters,
-                            @JsonDeserialize(using = VirtualClusterContainerDeserializer.class) List<VirtualCluster> virtualClusters,
+                            @NonNull @JsonProperty(required = true) @JsonDeserialize(using = VirtualClusterContainerDeserializer.class) List<VirtualCluster> virtualClusters,
                             @Deprecated @Nullable List<FilterDefinition> filters,
-                            List<MicrometerDefinition> micrometer,
+                            @Nullable List<MicrometerDefinition> micrometer,
                             boolean useIoUring,
                             @NonNull Optional<Map<String, Object>> development) {
 
@@ -98,10 +99,16 @@ public record Configuration(
     @JsonCreator
     public Configuration {
         Objects.requireNonNull(development);
+        if (virtualClusters == null || virtualClusters.isEmpty()) {
+            throw new IllegalConfigurationException("At least one virtual cluster must be defined.");
+        }
+
         // Enforce post condition: filters and filterDefinitions are not both set
         if (filters != null && filterDefinitions != null) {
             throw new IllegalConfigurationException("'filters' and 'filterDefinitions' can't both be set");
         }
+
+        validateNoDuplicatedClusterNames(virtualClusters);
 
         // Enforce post condition: filterDefinitions have a unique name
         if (filterDefinitions != null) {
@@ -116,11 +123,8 @@ public record Configuration(
         Set<String> filterDefsByName = Optional.ofNullable(filterDefinitions).orElse(List.of()).stream().map(NamedFilterDefinition::name).collect(
                 Collectors.toSet());
         checkNamedFiltersAreDefined(filterDefsByName, defaultFilters, "defaultFilters");
-        if (virtualClusters != null) {
-            validateNoDuplicatedClusterNames(virtualClusters);
-            for (var virtualCluster : virtualClusters) {
-                checkNamedFiltersAreDefined(filterDefsByName, virtualCluster.filters(), "virtualClusters." + virtualCluster.name() + ".filters");
-            }
+        for (var virtualCluster : virtualClusters) {
+            checkNamedFiltersAreDefined(filterDefsByName, virtualCluster.filters(), "virtualClusters." + virtualCluster.name() + ".filters");
         }
 
         // Every filter defined in the filterDefinitions is used somewhere
@@ -129,20 +133,18 @@ public record Configuration(
             if (defaultFilters != null) {
                 defaultFilters.forEach(defined::remove);
             }
-            if (virtualClusters != null) {
-                virtualClusters.stream()
-                        .map(VirtualCluster::filters)
-                        .filter(Objects::nonNull)
-                        .flatMap(Collection::stream)
-                        .forEach(defined::remove);
-            }
+            virtualClusters.stream()
+                    .map(VirtualCluster::filters)
+                    .filter(Objects::nonNull)
+                    .flatMap(Collection::stream)
+                    .forEach(defined::remove);
             if (!defined.isEmpty()) {
                 throw new IllegalConfigurationException(
                         "'filterDefinitions' defines filters which are not used in 'defaultFilters' or in any virtual cluster's 'filters': " + defined);
             }
         }
 
-        if (filters != null && virtualClusters != null && virtualClusters.stream()
+        if (filters != null && virtualClusters.stream()
                 .map(VirtualCluster::filters)
                 .anyMatch(Objects::nonNull)) {
             throw new IllegalConfigurationException(

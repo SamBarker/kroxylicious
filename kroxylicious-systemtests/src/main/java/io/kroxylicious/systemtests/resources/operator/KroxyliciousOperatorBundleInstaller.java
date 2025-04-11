@@ -23,18 +23,19 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.platform.commons.PreconditionViolationException;
 
+import io.fabric8.kubernetes.api.model.LocalObjectReferenceBuilder;
 import io.fabric8.kubernetes.api.model.apiextensions.v1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.skodjob.testframe.enums.InstallType;
 import io.skodjob.testframe.installation.InstallationMethod;
+import io.skodjob.testframe.resources.KubeResourceManager;
 import io.skodjob.testframe.utils.ImageUtils;
 import io.skodjob.testframe.utils.TestFrameUtils;
 
 import io.kroxylicious.systemtests.Constants;
 import io.kroxylicious.systemtests.Environment;
 import io.kroxylicious.systemtests.k8s.KubeClusterResource;
-import io.kroxylicious.systemtests.resources.manager.ResourceManager;
 import io.kroxylicious.systemtests.utils.DeploymentUtils;
 
 import static io.kroxylicious.systemtests.k8s.KubeClusterResource.kubeClient;
@@ -71,7 +72,7 @@ public class KroxyliciousOperatorBundleInstaller implements InstallationMethod {
     public KroxyliciousOperatorBundleInstaller(String namespaceInstallTo) {
         this.namespaceInstallTo = namespaceInstallTo;
         this.replicas = 1;
-        this.extensionContext = ResourceManager.getTestContext();
+        this.extensionContext = KubeResourceManager.get().getTestContext();
         this.kroxyliciousOperatorName = Constants.KROXYLICIOUS_OPERATOR_DEPLOYMENT_NAME;
     }
 
@@ -139,12 +140,15 @@ public class KroxyliciousOperatorBundleInstaller implements InstallationMethod {
                 .withImage(ImageUtils.changeRegistryOrgAndTag(deploymentImage, Environment.KROXY_REGISTRY, Environment.KROXY_ORG, Environment.KROXY_TAG))
                 .withImagePullPolicy(Constants.PULL_IMAGE_IF_NOT_PRESENT)
                 .endContainer()
+                .withImagePullSecrets(new LocalObjectReferenceBuilder()
+                        .withName("regcred")
+                        .build())
                 .endSpec()
                 .endTemplate()
                 .endSpec()
                 .build();
 
-        ResourceManager.getInstance().createResourceWithWait(operatorDeployment);
+        KubeResourceManager.get().createResourceWithWait(operatorDeployment);
     }
 
     /**
@@ -162,7 +166,7 @@ public class KroxyliciousOperatorBundleInstaller implements InstallationMethod {
                 .toList();
         for (File crdFile : crdFiles) {
             CustomResourceDefinition customResourceDefinition = TestFrameUtils.configFromYaml(crdFile, CustomResourceDefinition.class);
-            ResourceManager.getInstance().createResourceWithWait(customResourceDefinition);
+            KubeResourceManager.get().createResourceWithWait(customResourceDefinition);
         }
     }
 
@@ -236,9 +240,10 @@ public class KroxyliciousOperatorBundleInstaller implements InstallationMethod {
             try {
                 if (!Environment.SKIP_TEARDOWN) {
                     for (File operatorFile : getFilteredOperatorFiles(Predicate.not(deploymentFiles))) {
+                        LOGGER.info("Deleting Kroxylicious Operator element: {}", operatorFile.getName());
                         kubeClient().getClient().load(new FileInputStream(operatorFile.getAbsolutePath())).inAnyNamespace().delete();
                     }
-                    ResourceManager.getInstance().deleteResources();
+                    KubeResourceManager.get().deleteResources(true);
                 }
             }
             catch (Exception e) {

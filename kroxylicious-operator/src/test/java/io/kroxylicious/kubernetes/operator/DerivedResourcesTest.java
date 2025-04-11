@@ -45,7 +45,6 @@ import io.javaoperatorsdk.operator.api.reconciler.dependent.managed.DefaultManag
 import io.javaoperatorsdk.operator.processing.dependent.BulkDependentResource;
 import io.javaoperatorsdk.operator.processing.dependent.kubernetes.KubernetesDependentResource;
 
-import io.kroxylicious.kubernetes.api.common.Condition;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxy;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngress;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaService;
@@ -56,7 +55,7 @@ import io.kroxylicious.kubernetes.operator.model.ProxyModelBuilder;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
-import static io.kroxylicious.kubernetes.operator.ProxyDeployment.KROXYLICIOUS_IMAGE_ENV_VAR;
+import static io.kroxylicious.kubernetes.operator.ProxyDeploymentDependentResource.KROXYLICIOUS_IMAGE_ENV_VAR;
 import static io.kroxylicious.kubernetes.operator.ResourcesUtil.name;
 import static io.kroxylicious.kubernetes.operator.ResourcesUtil.namespace;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -146,6 +145,7 @@ class DerivedResourcesTest {
     record SingletonDependentResourceDesiredFn<D extends KubernetesDependentResource<R, P>, P extends HasMetadata, R extends HasMetadata>(
                                                                                                                                           D dependentResource,
                                                                                                                                           String dependentResourceKind,
+                                                                                                                                          io.javaoperatorsdk.operator.processing.dependent.workflow.Condition<R, P> reconcilePrecondition,
                                                                                                                                           TriFunction<D, P, Context<P>, R> fn)
             implements DesiredFn<P, R> {
         @Override
@@ -155,6 +155,10 @@ class DerivedResourcesTest {
 
         @Override
         public Map<String, R> invokeDesired(P primary, Context<P> context) {
+            if (reconcilePrecondition != null && !reconcilePrecondition.isMet(dependentResource, primary, context)) {
+                return Map.of();
+            }
+
             R apply = fn.apply(dependentResource, primary, context);
             return Map.of(name(apply), apply);
         }
@@ -187,10 +191,13 @@ class DerivedResourcesTest {
         // Note that the order in this list should reflect the dependency order declared in the ProxyReconciler's
         // @ControllerConfiguration annotation, because the statefulness of Context<KafkaProxy> means that
         // later DependentResource can depend on Context state created by earlier DependentResources.
+
         var list = List.<DesiredFn<KafkaProxy, ?>> of(
-                new SingletonDependentResourceDesiredFn<>(new ProxyConfigConfigMap(), "ConfigMap", ProxyConfigConfigMap::desired),
-                new SingletonDependentResourceDesiredFn<>(new ProxyDeployment(), "Deployment", ProxyDeployment::desired),
-                new BulkDependentResourceDesiredFn<>(new ClusterService(), "Service", ClusterService::desiredResources));
+                new SingletonDependentResourceDesiredFn<>(new ProxyConfigStateDependentResource(), "ConfigMap", null, ProxyConfigStateDependentResource::desired),
+                new SingletonDependentResourceDesiredFn<>(new ProxyConfigDependentResource(), "ConfigMap", new ProxyConfigReconcilePrecondition(),
+                        ProxyConfigDependentResource::desired),
+                new SingletonDependentResourceDesiredFn<>(new ProxyDeploymentDependentResource(), "Deployment", null, ProxyDeploymentDependentResource::desired),
+                new BulkDependentResourceDesiredFn<>(new ClusterServiceDependentResource(), "Service", ClusterServiceDependentResource::desiredResources));
         return dependentResourcesShouldEqual(list);
     }
 
@@ -207,14 +214,6 @@ class DerivedResourcesTest {
                     }
 
                 });
-
-    }
-
-    record ConditionStruct(Condition.Type type,
-                           String cluster,
-                           String status,
-                           String reason,
-                           String message) {
 
     }
 
@@ -248,21 +247,23 @@ class DerivedResourcesTest {
             ProxyModel model = proxyModelBuilder.build(kafkaProxy, context);
             KafkaProxyContext.init(
                     context,
-                    Clock.fixed(Instant.EPOCH, ZoneId.of("Z")),
+                    new VirtualKafkaClusterStatusFactory(Clock.fixed(Instant.EPOCH, ZoneId.of("Z"))),
                     SecureConfigInterpolator.DEFAULT_INTERPOLATOR,
                     model);
 
             List<DynamicTest> tests = new ArrayList<>();
 
             var dr = dependentResources.stream()
-                    .flatMap(r -> r.invokeDesired(kafkaProxy, context).values().stream().map(x -> Map.entry(r.resourceType(), x)))
+                    .flatMap(r -> r.invokeDesired(kafkaProxy, context).values()
+                            .stream()
+                            .map(x -> Map.entry(r.resourceType(), x)))
                     .collect(Collectors.groupingBy(Map.Entry::getKey))
                     .entrySet()
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey,
                             e -> e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toCollection(() -> new TreeSet<>(
                                     Comparator.comparing(ResourcesUtil::name))))));
-            for (var entry : dr.entrySet()) {
+            for (var entry : dr.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().getSimpleName())).toList()) {
                 var resourceType = entry.getKey();
                 var actualResources = entry.getValue();
                 for (var actualResource : actualResources) {
@@ -271,7 +272,7 @@ class DerivedResourcesTest {
                     var expectedFile = testDir.resolve("out-" + kind + "-" + name + ".yaml");
                     tests.add(DynamicTest.dynamicTest(kind + " '" + name + "' should have the same content as " + testDir.relativize(expectedFile),
                             () -> {
-                                assertThat(Files.exists(expectedFile)).isTrue();
+                                assertThat(Files.exists(expectedFile)).describedAs(expectedFile + " does not exist").isTrue();
                                 var expected = loadExpected(expectedFile, resourceType);
                                 assertSameYaml(actualResource, expected);
                                 unusedFiles.remove(expectedFile);
@@ -344,8 +345,6 @@ class DerivedResourcesTest {
 
         return context;
     }
-
-    record ErrorStruct(String type, String message) {}
 
     private static String fileName(Path testDir) {
         return testDir.getFileName().toString();

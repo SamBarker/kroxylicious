@@ -6,6 +6,13 @@
 
 package io.kroxylicious.kubernetes.api.common;
 
+import java.util.Objects;
+
+import com.fasterxml.jackson.annotation.Nulls;
+
+import io.fabric8.generator.annotation.Default;
+import io.fabric8.generator.annotation.Required;
+
 /**
  * A common Condition type, used in CR statuses.
  */
@@ -26,6 +33,11 @@ package io.kroxylicious.kubernetes.api.common;
 })
 public class Condition implements io.fabric8.kubernetes.api.builder.Editable<ConditionBuilder>, io.fabric8.kubernetes.api.model.KubernetesResource {
 
+    public static final String REASON_INTERPOLATED_REFS_NOT_FOUND = "InterpolatedReferencedResourcesNotFound";
+    public static final String REASON_REFS_NOT_FOUND = "ReferencedResourcesNotFound";
+    public static final String REASON_TRANSITIVE_REFS_NOT_FOUND = "TransitivelyReferencedResourcesNotFound";
+    public static final String REASON_INVALID = "Invalid";
+
     @Override
     public ConditionBuilder edit() {
         return new ConditionBuilder(this);
@@ -38,7 +50,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
      */
     @com.fasterxml.jackson.annotation.JsonProperty("lastTransitionTime")
     @com.fasterxml.jackson.annotation.JsonPropertyDescription("lastTransitionTime is the last time the condition transitioned from one status to another. \nThis should be when the underlying condition changed. \nIf that is not known, then using the time when the API field changed is acceptable.\n")
-    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.SKIP)
+    @com.fasterxml.jackson.annotation.JsonSetter(nulls = Nulls.FAIL)
     @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING)
     private java.time.Instant lastTransitionTime;
 
@@ -47,16 +59,17 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     }
 
     public void setLastTransitionTime(java.time.Instant lastTransitionTime) {
-        this.lastTransitionTime = lastTransitionTime;
+        this.lastTransitionTime = Objects.requireNonNull(lastTransitionTime);
     }
 
     /**
      * message is a human readable message indicating details about the transition.
      * This may be an empty string.
      */
-    @com.fasterxml.jackson.annotation.JsonProperty("message")
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "message", defaultValue = "")
     @com.fasterxml.jackson.annotation.JsonPropertyDescription("message is a human readable message indicating details about the transition. \nThis may be an empty string.\n")
-    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.SKIP)
+    @com.fasterxml.jackson.annotation.JsonSetter(nulls = Nulls.FAIL, value = "")
+    @Default("")
     private String message;
 
     public String getMessage() {
@@ -64,7 +77,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     }
 
     public void setMessage(String message) {
-        this.message = message;
+        this.message = Objects.requireNonNull(message);
     }
 
     /**
@@ -75,7 +88,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
      */
     @com.fasterxml.jackson.annotation.JsonProperty("observedGeneration")
     @com.fasterxml.jackson.annotation.JsonPropertyDescription("observedGeneration represents the .metadata.generation that the condition was set based upon. \nFor instance, if .metadata.generation is currently 12, but the \n.status.conditions[x].observedGeneration is 9, the condition is out of date with \nrespect to the current state of the instance.\n")
-    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.SKIP)
+    @com.fasterxml.jackson.annotation.JsonSetter(nulls = Nulls.FAIL)
     private Long observedGeneration;
 
     public Long getObservedGeneration() {
@@ -83,7 +96,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     }
 
     public void setObservedGeneration(Long observedGeneration) {
-        this.observedGeneration = observedGeneration;
+        this.observedGeneration = Objects.requireNonNull(observedGeneration);
     }
 
     /**
@@ -93,9 +106,10 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
      * The value should be a CamelCase string.
      * This field may not be empty.
      */
-    @com.fasterxml.jackson.annotation.JsonProperty("reason")
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "reason", defaultValue = "")
     @com.fasterxml.jackson.annotation.JsonPropertyDescription("reason contains a programmatic identifier indicating the reason for the condition's last transition. \nProducers of specific condition types may define expected values and meanings for this field, \nand whether the values are considered a guaranteed API. \nThe value should be a CamelCase string. \nThis field may not be empty.\n")
-    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.SKIP)
+    @com.fasterxml.jackson.annotation.JsonSetter(nulls = Nulls.FAIL, value = "")
+    @Required
     private String reason;
 
     public String getReason() {
@@ -103,7 +117,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     }
 
     public void setReason(String reason) {
-        this.reason = reason;
+        this.reason = Objects.requireNonNull(reason);
     }
 
     @Override
@@ -158,9 +172,9 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     /**
      * type of condition in CamelCase or in foo.example.com/CamelCase.
      */
-    @com.fasterxml.jackson.annotation.JsonProperty("type")
+    @com.fasterxml.jackson.annotation.JsonProperty(value = "type")
     @com.fasterxml.jackson.annotation.JsonPropertyDescription("type of condition in CamelCase or in foo.example.com/CamelCase.")
-    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.SKIP)
+    @com.fasterxml.jackson.annotation.JsonSetter(nulls = Nulls.FAIL)
     private Type type;
 
     public Type getType() {
@@ -168,7 +182,7 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
     }
 
     public void setType(Type type) {
-        this.type = type;
+        this.type = Objects.requireNonNull(type);
     }
 
     public enum Type {
@@ -185,5 +199,11 @@ public class Condition implements io.fabric8.kubernetes.api.builder.Editable<Con
         public String getValue() {
             return value;
         }
+    }
+
+    public static boolean isResolvedRefsFalse(Condition condition) {
+        Objects.requireNonNull(condition);
+        return Condition.Type.ResolvedRefs.equals(condition.getType())
+                && Condition.Status.FALSE.equals(condition.getStatus());
     }
 }
