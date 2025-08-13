@@ -20,6 +20,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelId;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.haproxy.HAProxyMessage;
 
@@ -36,7 +37,10 @@ import io.kroxylicious.proxy.model.VirtualClusterModel;
 import io.kroxylicious.proxy.service.HostPort;
 import io.kroxylicious.proxy.tag.VisibleForTesting;
 
+import edu.umd.cs.findbugs.annotations.CheckReturnValue;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import info.schnatterer.mobynamesgenerator.MobyNamesGenerator;
 
 import static io.kroxylicious.proxy.internal.ProxyChannelState.Startup.STARTING_STATE;
 import static io.kroxylicious.proxy.internal.util.Metrics.KROXYLICIOUS_DOWNSTREAM_CONNECTIONS;
@@ -153,6 +157,9 @@ public class ProxyChannelStateMachine {
     @VisibleForTesting
     @Nullable
     Timer.Sample serverBackpressureTimer;
+
+    @Nullable
+    private String sessionId;
 
     @SuppressWarnings("java:S5738")
     public ProxyChannelStateMachine(String clusterName, @Nullable Integer nodeId) {
@@ -292,11 +299,20 @@ public class ProxyChannelStateMachine {
     void onClientActive(KafkaProxyFrontendHandler frontendHandler) {
         if (STARTING_STATE.equals(this.state)) {
             this.frontendHandler = frontendHandler;
+            this.sessionId = allocateSessionId(frontendHandler);
             toClientActive(STARTING_STATE.toClientActive(), frontendHandler);
         }
         else {
             illegalState("Client activation while not in the start state");
         }
+    }
+
+    @NonNull
+    private String allocateSessionId(KafkaProxyFrontendHandler frontendHandler) {
+        ChannelId channelId = Objects.requireNonNull(frontendHandler.channelId(), "unable to allocate session ID due to null channel ID");
+        String sessionId = String.format("%s-%s", MobyNamesGenerator.getRandomName(), channelId.asShortText());
+        LOGGER.info("Allocated session ID: {} for connection from {}", sessionId, channelId.asLongText());
+        return sessionId;
     }
 
     /**
@@ -496,6 +512,16 @@ public class ProxyChannelStateMachine {
         downstreamErrorCounter.increment();
         clientToProxyErrorCounter.increment();
         toClosed(errorCodeEx);
+    }
+
+    /**
+     * Return the session ID which connects a frontend channel with a backend channel
+     * @return <code>null</code> if there are no channels associated with the session.
+     */
+    @CheckReturnValue
+    @Nullable
+    public String sessionId() {
+        return sessionId;
     }
 
     @SuppressWarnings("java:S5738")
