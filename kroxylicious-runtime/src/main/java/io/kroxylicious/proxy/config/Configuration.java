@@ -68,7 +68,7 @@ public record Configuration(
             }
 
             // Enforce post condition: Every filter referenced by a name is defined in the filterDefinitions
-            Set<String> filterDefsByName = Optional.ofNullable(filterDefinitions).orElse(List.of()).stream().map(NamedFilterDefinition::name).collect(
+            Set<String> filterDefsByName = Optional.of(filterDefinitions).orElse(List.of()).stream().map(NamedFilterDefinition::name).collect(
                     Collectors.toSet());
             checkNamedFiltersAreDefined(filterDefsByName, defaultFilters, "defaultFilters");
             for (var virtualCluster : virtualClusters) {
@@ -107,7 +107,7 @@ public record Configuration(
         }
     }
 
-    private void checkAllNamedFilterAreUsed(List<NamedFilterDefinition> filterDefinitions, List<VirtualCluster> clusters, List<String> defaultFilters) {
+    private void checkAllNamedFilterAreUsed(List<NamedFilterDefinition> filterDefinitions, List<VirtualCluster> clusters, @Nullable List<String> defaultFilters) {
         var defined = filterDefinitions.stream().map(NamedFilterDefinition::name).collect(Collectors.toCollection(HashSet::new));
         if (defaultFilters != null) {
             defaultFilters.forEach(defined::remove);
