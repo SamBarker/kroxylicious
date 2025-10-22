@@ -8,6 +8,7 @@ package io.kroxylicious.proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
@@ -41,6 +42,7 @@ import io.kroxylicious.proxy.bootstrap.FilterChainFactory;
 import io.kroxylicious.proxy.config.Configuration;
 import io.kroxylicious.proxy.config.IllegalConfigurationException;
 import io.kroxylicious.proxy.config.MicrometerDefinition;
+import io.kroxylicious.proxy.config.NetworkDefinition;
 import io.kroxylicious.proxy.config.PluginFactoryRegistry;
 import io.kroxylicious.proxy.config.admin.ManagementConfiguration;
 import io.kroxylicious.proxy.internal.ApiVersionsServiceImpl;
@@ -125,7 +127,7 @@ public final class KafkaProxy implements AutoCloseable {
                     .map(c -> new HostPort(c.getEffectiveBindAddress(), c.getEffectivePort()));
             portConflictDefector.validate(virtualClusterModels, managementHostPort);
 
-            int availableCores = config.networkDefinition().proxySettings().activeWorkerThreadCount();
+            int availableCores = resolveThreadCount().orElse(Runtime.getRuntime().availableProcessors());
 
             this.managementEventGroup = buildNettyEventGroups("management", availableCores, config.isUseIoUring());
             this.serverEventGroup = buildNettyEventGroups("server", availableCores, config.isUseIoUring());
@@ -159,6 +161,21 @@ public final class KafkaProxy implements AutoCloseable {
             shutdown();
             throw e;
         }
+    }
+
+    private Optional<Integer> resolveThreadCount() {
+        Optional<Integer> result;
+        NetworkDefinition network = config.network();
+        if (Objects.isNull(network)) {
+            result = Optional.empty();
+        }
+        else if (Objects.isNull(network.proxy())) {
+            result = Optional.empty();
+        }
+        else {
+            result = network.proxy().workerThreadCount();
+        }
+        return result;
     }
 
     private void initVersionInfoMetric() {
