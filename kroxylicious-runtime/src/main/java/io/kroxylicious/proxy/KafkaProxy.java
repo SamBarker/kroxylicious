@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,6 +43,7 @@ import io.kroxylicious.proxy.bootstrap.FilterChainFactory;
 import io.kroxylicious.proxy.config.Configuration;
 import io.kroxylicious.proxy.config.IllegalConfigurationException;
 import io.kroxylicious.proxy.config.MicrometerDefinition;
+import io.kroxylicious.proxy.config.NettySettings;
 import io.kroxylicious.proxy.config.NetworkDefinition;
 import io.kroxylicious.proxy.config.PluginFactoryRegistry;
 import io.kroxylicious.proxy.config.admin.ManagementConfiguration;
@@ -68,7 +70,8 @@ public final class KafkaProxy implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaProxy.class);
     private static final Logger STARTUP_SHUTDOWN_LOGGER = LoggerFactory.getLogger("io.kroxylicious.proxy.StartupShutdownLogger");
 
-    private record EventGroupConfig(String name, EventLoopGroup bossGroup, EventLoopGroup workerGroup, Class<? extends ServerChannel> clazz) {
+    @VisibleForTesting
+    record EventGroupConfig(String name, EventLoopGroup bossGroup, EventLoopGroup workerGroup, Class<? extends ServerChannel> clazz) {
 
         public List<Future<?>> shutdownGracefully() {
             return List.of(bossGroup.shutdownGracefully(), workerGroup.shutdownGracefully());
@@ -108,6 +111,18 @@ public final class KafkaProxy implements AutoCloseable {
         return config;
     }
 
+    @VisibleForTesting
+    @Nullable
+    EventGroupConfig managementEventGroup() {
+        return managementEventGroup;
+    }
+
+    @VisibleForTesting
+    @Nullable
+    EventGroupConfig serverEventGroup() {
+        return serverEventGroup;
+    }
+
     /**
      * Starts this proxy.
      * @return This proxy.
@@ -127,10 +142,11 @@ public final class KafkaProxy implements AutoCloseable {
                     .map(c -> new HostPort(c.getEffectiveBindAddress(), c.getEffectivePort()));
             portConflictDefector.validate(virtualClusterModels, managementHostPort);
 
-            int availableCores = resolveThreadCount().orElse(Runtime.getRuntime().availableProcessors());
+            int proxyWorkerThreadCount = resolveThreadCount(NetworkDefinition::proxy);
+            int managementWorkerThreadCount = resolveThreadCount(NetworkDefinition::management);
 
-            this.managementEventGroup = buildNettyEventGroups("management", availableCores, config.isUseIoUring());
-            this.serverEventGroup = buildNettyEventGroups("server", availableCores, config.isUseIoUring());
+            this.managementEventGroup = buildNettyEventGroups("management", managementWorkerThreadCount, config.isUseIoUring());
+            this.serverEventGroup = buildNettyEventGroups("proxy", proxyWorkerThreadCount, config.isUseIoUring());
 
             var managementFuture = maybeStartManagementListener(managementEventGroup, meterRegistries);
 
@@ -163,19 +179,22 @@ public final class KafkaProxy implements AutoCloseable {
         }
     }
 
-    private Optional<Integer> resolveThreadCount() {
+    private Integer resolveThreadCount(Function<NetworkDefinition, NettySettings> settingsSupplier) {
         Optional<Integer> result;
         NetworkDefinition network = config.network();
         if (Objects.isNull(network)) {
             result = Optional.empty();
         }
-        else if (Objects.isNull(network.proxy())) {
-            result = Optional.empty();
-        }
         else {
-            result = network.proxy().workerThreadCount();
+            NettySettings nettySettings = settingsSupplier.apply(network);
+            if (Objects.isNull(nettySettings)) {
+                result = Optional.empty();
+            }
+            else {
+                result = nettySettings.workerThreadCount();
+            }
         }
-        return result;
+        return result.orElse(Runtime.getRuntime().availableProcessors());
     }
 
     private void initVersionInfoMetric() {
