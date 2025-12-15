@@ -108,7 +108,7 @@ public class FilterHandler extends ChannelDuplexHandler {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         this.ctx = ctx;
-        this.promiseFactory = new PromiseFactory(ctx.executor(), timeoutMs, TimeUnit.MILLISECONDS, LOGGER.getName());
+        this.promiseFactory = new PromiseFactory(ctx.channel().eventLoop(), timeoutMs, TimeUnit.MILLISECONDS, LOGGER.getName());
         super.channelActive(ctx);
     }
 
@@ -637,7 +637,7 @@ public class FilterHandler extends ChannelDuplexHandler {
 
         @Override
         public CompletionStage<TopicNameMapping> topicNames(Collection<Uuid> topicIds) {
-            return new TopicNameRetriever(this, Objects.requireNonNull(ctx).executor()).topicNames(topicIds);
+            return new TopicNameRetriever(this, Objects.requireNonNull(ctx).channel().eventLoop()).topicNames(topicIds);
         }
 
     }

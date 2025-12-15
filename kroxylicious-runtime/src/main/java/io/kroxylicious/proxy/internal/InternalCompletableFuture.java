@@ -11,6 +11,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 
+import io.netty.channel.EventLoop;
+
 /**
  * Implementation of CompletableFuture that uses the given {@link Executor}
  * for async method invocations that do not specify one.
@@ -21,10 +23,10 @@ import java.util.concurrent.Executor;
  */
 class InternalCompletableFuture<T> extends CompletableFuture<T> {
 
-    private final Executor executor;
+    private final EventLoop eventLoop;
 
-    InternalCompletableFuture(Executor executor) {
-        this.executor = Objects.requireNonNull(executor);
+    InternalCompletableFuture(EventLoop eventLoop) {
+        this.eventLoop = Objects.requireNonNull(eventLoop);
     }
 
     /**
@@ -36,7 +38,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      */
     @Override
     public <U> CompletableFuture<U> newIncompleteFuture() {
-        return new InternalCompletableFuture<>(executor);
+        return new InternalCompletableFuture<>(eventLoop);
     }
 
     /**
@@ -46,7 +48,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      */
     @Override
     public Executor defaultExecutor() {
-        return executor;
+        return eventLoop;
     }
 
     /**
@@ -73,7 +75,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      * @param <U> the type of the value
      * @return the completed CompletableFuture
      */
-    public static <U> CompletableFuture<U> completedFuture(Executor executor, U value) {
+    public static <U> CompletableFuture<U> completedFuture(EventLoop executor, U value) {
         var f = new InternalCompletableFuture<U>(executor);
         f.complete(value);
         return f;

@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -23,16 +22,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import io.netty.channel.DefaultEventLoop;
+import io.netty.channel.EventLoop;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InternalCompletableFutureTest {
 
-    private ExecutorService executor;
+    private EventLoop executor;
 
     @BeforeEach
     void beforeEach() {
-        executor = Executors.newSingleThreadExecutor();
+        executor = new DefaultEventLoop(Executors.newSingleThreadExecutor());
     }
 
     @AfterEach

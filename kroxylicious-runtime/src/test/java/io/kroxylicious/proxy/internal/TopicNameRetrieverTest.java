@@ -22,7 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import io.netty.util.concurrent.EventExecutor;
+import io.netty.channel.EventLoop;
 
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.metadata.TopLevelMetadataErrorException;
@@ -49,7 +49,7 @@ class TopicNameRetrieverTest {
     public static final String TOPIC_NAME = "topicName";
     public static final String TOPIC_NAME_2 = "topicName2";
     @Mock
-    private EventExecutor eventExecutor;
+    private EventLoop eventExecutor;
 
     @Mock
     private FilterContext filterContext;

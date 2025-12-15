@@ -11,8 +11,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,6 +18,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import io.netty.channel.DefaultEventLoop;
+import io.netty.channel.EventLoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +39,7 @@ class PromiseFactoryTest {
 
     @BeforeEach
     void setUp() {
-        promiseFactory = new PromiseFactory(Executors.newSingleThreadScheduledExecutor(), TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
+        promiseFactory = new PromiseFactory(new DefaultEventLoop(Executors.newSingleThreadScheduledExecutor()), TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
     }
 
     @Test
@@ -68,9 +69,9 @@ class PromiseFactoryTest {
     @Test
     void shouldCreatePromiseWithTimeout() {
         // Given
-        final ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        final EventLoop executorService = mock(EventLoop.class);
         promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
-        when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenReturn(mock(ScheduledFuture.class));
+        when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenReturn(mock(io.netty.util.concurrent.ScheduledFuture.class));
 
         // When
         final CompletableFuture<Object> promise = promiseFactory.newTimeLimitedPromise(() -> "");
@@ -85,14 +86,14 @@ class PromiseFactoryTest {
 
         // ScheduledExecutorService is only auto closeable in JDK 19+
         @SuppressWarnings("resource")
-        final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        final EventLoop eventLoop = new DefaultEventLoop(Executors.newSingleThreadScheduledExecutor());
         try {
-            final ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+            final EventLoop executorService = mock(EventLoop.class);
             promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
 
-            final AtomicReference<ScheduledFuture<?>> timeoutFuture = new AtomicReference<>();
+            final AtomicReference<io.netty.util.concurrent.ScheduledFuture<?>> timeoutFuture = new AtomicReference<>();
             when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenAnswer(invocationOnMock -> {
-                final ScheduledFuture<?> newValue = scheduledExecutorService.schedule((Runnable) invocationOnMock.getArgument(0),
+                final io.netty.util.concurrent.ScheduledFuture<?> newValue = eventLoop.schedule((Runnable) invocationOnMock.getArgument(0),
                         invocationOnMock.getArgument(1),
                         invocationOnMock.getArgument(2));
                 timeoutFuture.set(newValue);
@@ -109,7 +110,7 @@ class PromiseFactoryTest {
                     .hasValueSatisfying(scheduledFuture -> Assertions.FUTURE.createAssert(scheduledFuture).isCancelled()));
         }
         finally {
-            scheduledExecutorService.shutdownNow();
+            eventLoop.shutdownNow();
         }
     }
 
@@ -117,9 +118,9 @@ class PromiseFactoryTest {
     @Test
     void shouldWrapPromiseWithTimeout() {
         // Given
-        final ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        final EventLoop executorService = mock(EventLoop.class);
         promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
-        when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenReturn(mock(ScheduledFuture.class));
+        when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenReturn(mock(io.netty.util.concurrent.ScheduledFuture.class));
         final CompletableFuture<Object> incomingFuture = new CompletableFuture<>();
 
         // When
@@ -135,9 +136,9 @@ class PromiseFactoryTest {
     @Test
     void shouldCancelTimeoutWhenIncomingFutureCompletes() {
         // Given
-        final ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        final EventLoop executorService = mock(EventLoop.class);
         promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
-        final ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
+        final io.netty.util.concurrent.ScheduledFuture scheduledFuture = mock(io.netty.util.concurrent.ScheduledFuture.class);
         when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenReturn(scheduledFuture);
         final CompletableFuture<Object> incomingFuture = new CompletableFuture<>();
         final CompletableFuture<Object> promise = promiseFactory.wrapWithTimeLimit(incomingFuture, () -> "");

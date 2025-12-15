@@ -22,7 +22,7 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
 
-import io.netty.util.concurrent.EventExecutor;
+import io.netty.channel.EventLoop;
 
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.metadata.TopLevelMetadataErrorException;
@@ -38,9 +38,9 @@ final class TopicNameRetriever {
     // Version 12 was the first version that uses topic ids.
     private static final short METADATA_API_VER_WITH_TOPIC_ID_SUPPORT = (short) 12;
     private final FilterContext filterContext;
-    private final EventExecutor filterDispatchExecutor;
+    private final EventLoop filterDispatchExecutor;
 
-    TopicNameRetriever(FilterContext filterContext, EventExecutor filterDispatchExecutor) {
+    TopicNameRetriever(FilterContext filterContext, EventLoop filterDispatchExecutor) {
         this.filterContext = filterContext;
         this.filterDispatchExecutor = filterDispatchExecutor;
     }
