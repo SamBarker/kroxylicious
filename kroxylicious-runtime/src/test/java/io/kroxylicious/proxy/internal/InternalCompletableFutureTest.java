@@ -6,6 +6,7 @@
 
 package io.kroxylicious.proxy.internal;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -56,6 +57,30 @@ class InternalCompletableFutureTest {
         assertThat(result).isCompleted();
         assertThat(actualThread).hasValue(threadOfExecutor);
 
+    }
+
+    @Test
+    void minimalStageComposesAsParameter() {
+        CompletionStage<Object> stage = InternalCompletableFuture.completedFuture(executor, null).minimalCompletionStage();
+        CompletableFuture<Object> thenCompose = CompletableFuture.completedFuture(null).thenCompose(f -> stage);
+        assertThat(thenCompose).succeedsWithin(Duration.ZERO);
+    }
+
+    @Test
+    void asyncChainingMethodExecutesOnThreadOfExecutorEither() throws Exception {
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        var future = new InternalCompletableFuture<>(executor);
+
+        var actualThread = new AtomicReference<Thread>();
+        var result = future.acceptEitherAsync(CompletableFuture.completedFuture(null), (u) -> {
+        }).thenAcceptAsync((u) -> {
+            assertThat(actualThread).hasValue(null);
+            actualThread.set(Thread.currentThread());
+        });
+        result.join();
+
+        assertThat(result).isCompleted();
+        assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     static Stream<Arguments> allChainingMethods() {
