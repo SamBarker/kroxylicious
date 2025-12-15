@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,6 +39,7 @@ import io.kroxylicious.proxy.filter.metadata.TopicNameMapping;
 import io.kroxylicious.proxy.plugin.Plugin;
 import io.kroxylicious.proxy.plugin.PluginConfigurationException;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
@@ -46,29 +48,31 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * look up the corresponding topic names for those topic ids. Then when the response is intercepted we will add
  * an unknownTaggedField with id {@link #TOPIC_NAME_TAG} containing a comma-separated set of topic names.
  */
-@Plugin(configType = Void.class)
-public class TopicIdToNameResponseStamper implements FilterFactory<Void, Void> {
+@Plugin(configType = TopicIdToNameResponseStamper.Config.class)
+public class TopicIdToNameResponseStamper implements FilterFactory<TopicIdToNameResponseStamper.Config, TopicIdToNameResponseStamper.Config> {
 
     public static final int TOPIC_ID_TAG = 98;
     public static final int TOPIC_NAME_TAG = 99;
 
     @Override
-    public Void initialize(FilterFactoryContext context, @Nullable Void config) throws PluginConfigurationException {
-        return null;
+    public Config initialize(FilterFactoryContext context, @Nullable Config config) throws PluginConfigurationException {
+        return config == null ? new Config(false) : config;
     }
 
     @Override
-    public Filter createFilter(FilterFactoryContext context, Void initializationData) {
-        return new TopicIdToNameResponseStamperFilter(context.filterDispatchExecutor());
+    public Filter createFilter(FilterFactoryContext context, Config initializationData) {
+        return new TopicIdToNameResponseStamperFilter(context.filterDispatchExecutor(), initializationData.asyncTopicNameLookup);
     }
 
     static class TopicIdToNameResponseStamperFilter implements RequestFilter, ResponseFilter {
 
         private final FilterDispatchExecutor filterDispatchExecutor;
+        private final boolean asyncTopicNameLookup;
         Map<Integer, TopicNameMapping> correlated = new HashMap<>();
 
-        TopicIdToNameResponseStamperFilter(FilterDispatchExecutor filterDispatchExecutor) {
+        TopicIdToNameResponseStamperFilter(FilterDispatchExecutor filterDispatchExecutor, boolean asyncTopicNameLookup) {
             this.filterDispatchExecutor = filterDispatchExecutor;
+            this.asyncTopicNameLookup = asyncTopicNameLookup;
         }
 
         @Override
@@ -80,14 +84,33 @@ public class TopicIdToNameResponseStamper implements FilterFactory<Void, Void> {
             }
 
             Set<Uuid> uuids = Arrays.stream(list.getFirst().split(",")).filter(s -> !s.isEmpty()).map(Uuid::fromString).collect(Collectors.toSet());
-            CompletionStage<TopicNameMapping> topicNameLookup = context.topicNames(uuids);
-            return topicNameLookup.thenComposeAsync(topicNames -> {
-                if (!filterDispatchExecutor.isInFilterDispatchThread()) {
-                    throw new IllegalStateException("async work chained to topic name stage should complete in FilterDispatchExecutor");
-                }
+            CompletionStage<TopicNameMapping> topicNameLookup;
+            if (asyncTopicNameLookup) {
+                topicNameLookup = CompletableFuture.supplyAsync(() -> null).thenCompose(o -> getTopicNames(context, uuids));
+            }
+            else {
+                topicNameLookup = getTopicNames(context, uuids);
+            }
+            // must switch back as the supplyAsync initiated stage can be completed on another thread
+            return filterDispatchExecutor.completeOnFilterDispatchThread(topicNameLookup).thenCompose(topicNames -> {
+                assertOnFilterDispatchThread();
                 correlated.put(header.correlationId(), topicNames);
                 return context.forwardRequest(header, request);
             });
+        }
+
+        private CompletionStage<TopicNameMapping> getTopicNames(FilterContext context, Set<Uuid> uuids) {
+            return context.topicNames(uuids).thenApply(topicNameMapping -> {
+                // demonstrates that work chained directly to the topicNames result is executed in the dispatch thread
+                assertOnFilterDispatchThread();
+                return topicNameMapping;
+            });
+        }
+
+        private void assertOnFilterDispatchThread() {
+            if (!filterDispatchExecutor.isInFilterDispatchThread()) {
+                throw new IllegalStateException("work chained to topicNames future should execute in filter dispatch thread");
+            }
         }
 
         @Override

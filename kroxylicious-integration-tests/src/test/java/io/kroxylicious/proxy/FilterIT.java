@@ -37,6 +37,7 @@ import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.types.RawTaggedField;
 import org.apache.kafka.common.serialization.Serdes;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -114,6 +115,27 @@ class FilterIT {
     void filtersCanLookUpEmptyTopicNames(KafkaCluster cluster) {
         NamedFilterDefinition namedFilterDefinition = new NamedFilterDefinitionBuilder(TOPIC_ID_LOOKUP_FILTER_NAME,
                 TopicIdToNameResponseStamper.class.getName())
+                .build();
+        var config = proxy(cluster)
+                .addToFilterDefinitions(namedFilterDefinition)
+                .addToDefaultFilters(namedFilterDefinition.name());
+
+        try (var tester = kroxyliciousTester(config);
+                var client = tester.simpleTestClient()) {
+            MetadataRequestData message = new MetadataRequestData();
+            message.unknownTaggedFields().add(
+                    new RawTaggedField(TopicIdToNameResponseStamper.TOPIC_ID_TAG, ("").getBytes(StandardCharsets.UTF_8)));
+            Response response = client.getSync(new Request(METADATA, METADATA.latestVersion(), "client", message));
+            // checking that the request/response flows through despite requesting an empty topic id list
+            assertThat(response).isNotNull();
+        }
+    }
+
+    @Test
+    void filtersCanLookUpEmptyTopicNamesInitiatedFromNonFilterDispatchThread(KafkaCluster cluster) {
+        NamedFilterDefinition namedFilterDefinition = new NamedFilterDefinitionBuilder(TOPIC_ID_LOOKUP_FILTER_NAME,
+                TopicIdToNameResponseStamper.class.getName())
+                .withConfig("asyncTopicNameLookup", true)
                 .build();
         var config = proxy(cluster)
                 .addToFilterDefinitions(namedFilterDefinition)
