@@ -30,8 +30,6 @@ import io.kroxylicious.proxy.filter.metadata.TopicLevelMetadataErrorException;
 import io.kroxylicious.proxy.filter.metadata.TopicNameMapping;
 import io.kroxylicious.proxy.filter.metadata.TopicNameMappingException;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.CompletableFuture.failedFuture;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +77,7 @@ class TopicNameRetrieverTest {
     @Test
     void retrieveEmptyTopicNamesMapping() {
         // when
-        CompletableFuture<TopicNameMapping> topicNames = toCompletableFuture(getTopicNamesMapping(Set.of()));
+        CompletionStage<TopicNameMapping> topicNames = getTopicNamesMapping(Set.of());
         // then
         assertThat(topicNames).succeedsWithin(Duration.ZERO)
                 .satisfies(topicNamesMapping -> {
@@ -88,20 +86,6 @@ class TopicNameRetrieverTest {
                     assertThat(topicNamesMapping.failures()).isEmpty();
                 });
         verify(filterContext, never()).sendRequest(any(), any());
-    }
-
-    @NonNull
-    private static CompletableFuture<TopicNameMapping> toCompletableFuture(CompletionStage<TopicNameMapping> topicNames) {
-        CompletableFuture<TopicNameMapping> future = new CompletableFuture<>();
-        topicNames.whenComplete((topicName, throwable) -> {
-            if (throwable != null) {
-                future.completeExceptionally(throwable);
-            }
-            else {
-                future.complete(topicName);
-            }
-        });
-        return future;
     }
 
     @Test

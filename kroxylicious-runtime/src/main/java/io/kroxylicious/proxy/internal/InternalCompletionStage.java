@@ -13,29 +13,24 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import io.netty.channel.EventLoop;
-
 /**
- * A CompletionStage implementation with guard rails so that Filter Authors are unable
- * to block the proxy thread loop using the CompletionStage we offer though the kroxylicious
- * filter api, or complete the underlying future unexpectedly.
+ * A CompletionStage implementation with guard rails so that chained work is executed on the
+ * event loop.
  */
 class InternalCompletionStage<T> implements CompletionStage<T> {
 
     private final CompletionStage<T> completionStage;
-    private final EventLoop eventLoop;
 
-    InternalCompletionStage(CompletionStage<T> completionStage, EventLoop eventLoop) {
+    InternalCompletionStage(CompletionStage<T> completionStage) {
         this.completionStage = completionStage;
-        this.eventLoop = eventLoop;
     }
 
     private <U> CompletionStage<U> wrap(CompletionStage<U> completionStage) {
-        return completionStage instanceof InternalCompletionStage ? completionStage : new InternalCompletionStage<>(completionStage, eventLoop);
+        return completionStage instanceof InternalCompletionStage ? completionStage : new InternalCompletionStage<>(completionStage);
     }
 
     private <U> CompletionStage<U> unwrap(CompletionStage<U> completionStage) {
-        return completionStage instanceof InternalCompletionStage ? ((InternalCompletionStage<U>) completionStage).getUnderlyingCompletableFuture() : completionStage;
+        return completionStage instanceof InternalCompletionStage ? completionStage.toCompletableFuture() : completionStage;
     }
 
     @Override
@@ -250,10 +245,7 @@ class InternalCompletionStage<T> implements CompletionStage<T> {
 
     @Override
     public CompletableFuture<T> toCompletableFuture() {
-        throw new UnsupportedOperationException("CompletableFuture usage disallowed, we don't want to block the event loop or allow unexpected completion");
-    }
-
-    CompletableFuture<T> getUnderlyingCompletableFuture() {
         return completionStage.toCompletableFuture();
     }
+
 }

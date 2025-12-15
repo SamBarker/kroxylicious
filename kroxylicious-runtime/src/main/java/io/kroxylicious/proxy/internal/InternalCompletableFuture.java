@@ -10,12 +10,16 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import io.netty.channel.EventLoop;
 
 /**
- * Implementation of CompletableFuture that uses the given {@link Executor}
- * for async method invocations that do not specify one.
+ * Implementation of CompletableFuture that executes all chained work on a specific
+ * event loop.
  * <br/>
  * @param <T> The result type returned by this future's {@code join}
  * and {@code get} methods.
@@ -61,12 +65,10 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      * exceptionally with a CompletionException with this exception as
      * cause.
      * <br/>
-     * The return CompletionStage implementation disallows the use
-     * of {@link #toCompletableFuture()} ()}
      */
     @Override
     public CompletionStage<T> minimalCompletionStage() {
-        return new InternalCompletionStage<>(this, eventLoop);
+        return new InternalCompletionStage<>(this);
     }
 
     /**
@@ -80,4 +82,237 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
         f.complete(value);
         return f;
     }
+
+    @Override
+    public <U> CompletableFuture<U> thenApply(Function<? super T, ? extends U> fn) {
+        return super.thenCompose(t -> {
+            if (isInEventLoop()) {
+                return super.thenApply(fn);
+            }
+            else {
+                return super.thenApplyAsync(fn);
+            }
+        });
+    }
+
+    private boolean isInEventLoop() {
+        return eventLoop.inEventLoop();
+    }
+
+    @Override
+    public CompletableFuture<Void> thenAccept(Consumer<? super T> action) {
+        return super.thenCompose(t -> {
+            if (isInEventLoop()) {
+                return super.thenAccept(action);
+            }
+            else {
+                return super.thenAcceptAsync(action);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> thenRun(Runnable action) {
+        return super.thenCompose(t -> {
+            if (isInEventLoop()) {
+                return super.thenRun(action);
+            }
+            else {
+                return super.thenRunAsync(action);
+            }
+        });
+    }
+
+    @Override
+    public <U, V> CompletableFuture<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
+        CompletionStage<? extends U> internalFuture = toInternalFuture(other);
+        return super.thenCombineAsync(internalFuture, fn);
+    }
+
+    private <U> CompletionStage<? extends U> toInternalFuture(CompletionStage<? extends U> other) {
+        if (other instanceof InternalCompletableFuture) {
+            return other;
+        }
+        CompletableFuture<U> incompleteFuture = newIncompleteFuture();
+        other.whenComplete((u, throwable) -> {
+            if (eventLoop.inEventLoop()) {
+                if (throwable != null) {
+                    incompleteFuture.completeExceptionally(throwable);
+                }
+                else {
+                    incompleteFuture.complete(u);
+                }
+            }
+            else {
+                eventLoop.execute(() -> {
+                    if (throwable != null) {
+                        incompleteFuture.completeExceptionally(throwable);
+                    }
+                    else {
+                        incompleteFuture.complete(u);
+                    }
+                });
+            }
+        });
+        return incompleteFuture;
+    }
+
+    @Override
+    public <U> CompletableFuture<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
+        CompletionStage<? extends U> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.thenAcceptBothAsync(internalFuture, action);
+    }
+
+    @Override
+    public CompletableFuture<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
+        CompletionStage<?> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.runAfterBothAsync(internalFuture, action);
+    }
+
+    @Override
+    public <U> CompletableFuture<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.applyToEitherAsync(internalFuture, fn);
+    }
+
+    @Override
+    public <U> CompletableFuture<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.applyToEitherAsync(internalFuture, fn);
+    }
+
+    @Override
+    public <U> CompletableFuture<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn, Executor executor) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.applyToEitherAsync(internalFuture, fn, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.acceptEitherAsync(internalFuture, action);
+    }
+
+    @Override
+    public CompletableFuture<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        return super.acceptEitherAsync(internalFuture, action);
+    }
+
+    @Override
+    public CompletableFuture<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action, Executor executor) {
+        CompletionStage<? extends T> internalFuture = toInternalFuture(other);
+        return super.acceptEitherAsync(internalFuture, action, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
+        CompletionStage<?> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.runAfterEitherAsync(internalFuture, action);
+    }
+
+    @Override
+    public CompletableFuture<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
+        CompletionStage<?> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.runAfterEitherAsync(internalFuture, action);
+    }
+
+    @Override
+    public CompletableFuture<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor) {
+        CompletionStage<?> internalFuture = toInternalFuture(other);
+        // go async to ensure function executed on event loop
+        return super.runAfterEitherAsync(internalFuture, action, executor);
+    }
+
+    @Override
+    public <U> CompletableFuture<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
+        return super.thenCompose(t -> {
+            if (isInEventLoop()) {
+                return super.thenCompose(fn);
+            }
+            else {
+                return super.thenComposeAsync(fn);
+            }
+        });
+    }
+
+    @Override
+    public <U> CompletableFuture<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
+        InternalCompletableFuture<T> tCompletableFuture = new InternalCompletableFuture<>(eventLoop);
+        CompletableFuture<U> incompleteFuture = tCompletableFuture.underlyingHandle(fn);
+        dispatchOnEventLoop(tCompletableFuture);
+        return incompleteFuture;
+    }
+
+    private <U> CompletableFuture<U> underlyingHandle(BiFunction<? super T, Throwable, ? extends U> fn) {
+        return super.handle(fn);
+    }
+
+    @Override
+    public CompletableFuture<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
+        InternalCompletableFuture<T> tCompletableFuture = new InternalCompletableFuture<>(eventLoop);
+        CompletableFuture<T> incompleteFuture = tCompletableFuture.underlyingWhenComplete(action);
+        dispatchOnEventLoop(tCompletableFuture);
+        return incompleteFuture;
+    }
+
+    private CompletableFuture<T> underlyingWhenComplete(BiConsumer<? super T, ? super Throwable> action) {
+        return super.whenComplete(action);
+    }
+
+    private void dispatchOnEventLoop(CompletableFuture<T> incompleteFuture) {
+        super.whenComplete((t, throwable) -> {
+            if (isInEventLoop()) {
+                if (throwable != null) {
+                    incompleteFuture.completeExceptionally(throwable);
+                }
+                else {
+                    incompleteFuture.complete(t);
+                }
+            }
+            else {
+                eventLoop.execute(() -> {
+                    if (throwable != null) {
+                        incompleteFuture.completeExceptionally(throwable);
+                    }
+                    else {
+                        incompleteFuture.complete(t);
+                    }
+                });
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<T> exceptionally(Function<Throwable, ? extends T> fn) {
+        return super.exceptionallyCompose(t -> {
+            if (isInEventLoop()) {
+                return super.exceptionally(fn);
+            }
+            else {
+                return super.exceptionallyAsync(fn);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return super.exceptionallyCompose(t -> {
+            if (isInEventLoop()) {
+                return super.exceptionallyCompose(fn);
+            }
+            else {
+                return super.exceptionallyComposeAsync(fn);
+            }
+        });
+    }
+
 }
