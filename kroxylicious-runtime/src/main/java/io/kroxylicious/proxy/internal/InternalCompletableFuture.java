@@ -66,7 +66,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      */
     @Override
     public CompletionStage<T> minimalCompletionStage() {
-        return new InternalCompletionStage<>(this);
+        return new InternalCompletionStage<>(this, eventLoop);
     }
 
     /**

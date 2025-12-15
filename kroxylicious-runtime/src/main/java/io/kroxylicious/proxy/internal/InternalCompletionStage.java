@@ -13,6 +13,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import io.netty.channel.EventLoop;
+
 /**
  * A CompletionStage implementation with guard rails so that Filter Authors are unable
  * to block the proxy thread loop using the CompletionStage we offer though the kroxylicious
@@ -21,13 +23,15 @@ import java.util.function.Function;
 class InternalCompletionStage<T> implements CompletionStage<T> {
 
     private final CompletionStage<T> completionStage;
+    private final EventLoop eventLoop;
 
-    InternalCompletionStage(CompletionStage<T> completionStage) {
+    InternalCompletionStage(CompletionStage<T> completionStage, EventLoop eventLoop) {
         this.completionStage = completionStage;
+        this.eventLoop = eventLoop;
     }
 
     private <U> CompletionStage<U> wrap(CompletionStage<U> completionStage) {
-        return completionStage instanceof InternalCompletionStage ? completionStage : new InternalCompletionStage<>(completionStage);
+        return completionStage instanceof InternalCompletionStage ? completionStage : new InternalCompletionStage<>(completionStage, eventLoop);
     }
 
     private <U> CompletionStage<U> unwrap(CompletionStage<U> completionStage) {
