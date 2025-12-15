@@ -265,7 +265,7 @@ class InternalCompletableFutureTest {
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> future1 = toFuture(result);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
         future.complete(null);
         assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
     }
@@ -276,21 +276,10 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
-        CompletableFuture<Void> future1 = toFuture(result);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
         future.complete(null);
         assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(future1).isInstanceOf(InternalCompletableFuture.class);
     }
 
-    private static CompletableFuture<Void> toFuture(CompletionStage<Void> result) {
-        CompletableFuture<Void> future1 = new CompletableFuture<>();
-        result.whenComplete((unused, throwable) -> {
-            if (throwable != null) {
-                future1.completeExceptionally(throwable);
-            }
-            else {
-                future1.complete(null);
-            }
-        });
-        return future1;
-    }
 }
