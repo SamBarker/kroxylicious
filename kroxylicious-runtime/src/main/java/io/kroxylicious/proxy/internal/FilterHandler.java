@@ -238,7 +238,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         }
         var stage = filterAndInvoker.invoker().onResponse(decodedFrame.apiKey(), decodedFrame.apiVersion(),
                 decodedFrame.header(), decodedFrame.body(), filterContext);
-        return stage instanceof InternalCompletionStage ? stage.toCompletableFuture() : stage.toCompletableFuture();
+        return stage.toCompletableFuture();
     }
 
     private CompletableFuture<ResponseFilterResult> configureResponseFilterChain(DecodedResponseFrame<?> decodedFrame, CompletableFuture<ResponseFilterResult> future) {
@@ -269,7 +269,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         }
         var stage = filterAndInvoker.invoker().onRequest(decodedFrame.apiKey(), decodedFrame.apiVersion(), decodedFrame.header(),
                 decodedFrame.body(), filterContext);
-        return stage instanceof InternalCompletionStage ? stage.toCompletableFuture() : stage.toCompletableFuture();
+        return stage.toCompletableFuture();
     }
 
     private CompletableFuture<RequestFilterResult> configureRequestFilterChain(DecodedRequestFrame<?> decodedFrame, ChannelPromise promise,
