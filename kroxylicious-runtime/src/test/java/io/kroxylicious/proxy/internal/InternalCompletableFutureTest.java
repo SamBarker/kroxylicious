@@ -306,11 +306,6 @@ class InternalCompletableFutureTest {
         return CompletableFuture.completedFuture(null);
     }
 
-    private static <T> CompletableFuture<Void> captureThreadChainedResult(T ignored, @SuppressWarnings("unused") Throwable after) {
-        assertThread();
-        return CompletableFuture.completedFuture(null);
-    }
-
     private static void assertThread() {
         assertThat(executor.inEventLoop()).isTrue();
         assertThat(actualThread.compareAndSet(null, Thread.currentThread())).isTrue();
