@@ -37,7 +37,7 @@ jobs:
         if: env.SONAR_TOKEN_SET == 'true'
         id: get_pr_data
         with:
-          route: GET /repos/${{env.full_name}}/pulls/${{env.number}}
+          route: GET /repos/${{env.full_name}}/pulls/${{env.pr_number}}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           pr_number: ${{ steps.pr_number.outputs.content }}
@@ -46,9 +46,8 @@ jobs:
         id: set_branch_name
         env:
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          BRANCH_REGEX: "[\(\$\)\;]+"
         run: |
-          if [[ ${HEAD_BRANCH} =~ ${BRANCH_REGEX} ]];
+          if [[ ${HEAD_BRANCH} =~ [\(\$\)\;]+ ]];
           then
             echo "BRANCH '${HEAD_BRANCH}' contains potentially malicious characters as it matches BRANCH_REGEX '${BRANCH_REGEX}'"
             exit 1
