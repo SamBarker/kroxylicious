@@ -13,10 +13,9 @@ on:
         description: 'Upstream OMB commit SHA to build from'
         required: true
         type: string
-      image_tag:
-        description: 'Tag for the built image'
-        required: false
-        default: 'latest'
+      build_number:
+        description: 'Build number (monotonically increasing for Renovate ordering)'
+        required: true
         type: string
 
 env:
@@ -34,12 +33,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Compute image tag
+        id: tag
+        run: |
+          OMB_SHORT=$(echo "${{ inputs.omb_commit }}" | cut -c1-7)
+          KROX_SHORT=$(git rev-parse --short=7 HEAD)
+          IMAGE_TAG="omb-${OMB_SHORT}-krox-${KROX_SHORT}-${{ inputs.build_number }}"
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Image tag: ${IMAGE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+
       - name: Build image
         run: >-
           docker build
           -f Containerfile
           --build-arg OMB_COMMIT=${{ inputs.omb_commit }}
-          -t ${{ env.IMAGE_NAME }}:${{ inputs.image_tag }}
+          -t ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           .
 
       - name: Log in to registry
@@ -53,8 +61,8 @@ jobs:
       - name: Push image
         if: vars.REGISTRY_SERVER != ''
         run: |
-          FULL_IMAGE=${{ vars.REGISTRY_SERVER }}/${{ vars.REGISTRY_ORGANISATION }}/${{ env.IMAGE_NAME }}:${{ inputs.image_tag }}
-          docker tag ${{ env.IMAGE_NAME }}:${{ inputs.image_tag }} "${FULL_IMAGE}"
+          FULL_IMAGE=${{ vars.REGISTRY_SERVER }}/${{ vars.REGISTRY_ORGANISATION }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }} "${FULL_IMAGE}"
           docker push "${FULL_IMAGE}"
           echo "Pushed ${FULL_IMAGE}" >> "${GITHUB_STEP_SUMMARY}"
 
