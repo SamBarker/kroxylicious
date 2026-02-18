@@ -83,6 +83,9 @@ kroxylicious-openmessaging-benchmarks/
 ├── QUICKSTART.md
 ├── Containerfile
 ├── .dockerignore
+├── scripts/
+│   ├── compare-results.sh          # Compare two OMB result files
+│   └── collect-results.sh          # Collect results and generate metadata
 ├── helm/
 │   └── kroxylicious-benchmark/
 │       ├── Chart.yaml
@@ -320,9 +323,10 @@ Tests use the following approach:
 - Encryption+Auth (RecordEncryption + Authorization filters)
 
 **Phase 3: Automation**
+- ✅ `compare-results.sh` - Performance comparison — complete
+- ✅ `collect-results.sh` - Results collection and metadata — complete
 - `run-benchmark.sh` - Automated execution
 - `run-all-scenarios.sh` - Multi-scenario testing
-- `compare-results.sh` - Performance comparison
 
 **Phase 4: Documentation**
 - Setup guide

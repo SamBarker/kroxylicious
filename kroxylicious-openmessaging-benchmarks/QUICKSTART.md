@@ -136,6 +136,23 @@ BENCHMARK_COORDINATOR=$(kubectl get pod -l app=omb-benchmark -n kafka -o jsonpat
 kubectl cp ${BENCHMARK_COORDINATOR}:. ./results/ -n kafka
 ```
 
+To generate metadata about the current run (git commit, branch, timestamp):
+
+```bash
+./kroxylicious-openmessaging-benchmarks/scripts/collect-results.sh --generate-run-metadata ./results/
+```
+
+### Compare Results
+
+To compare two OMB result files (e.g. baseline vs proxy):
+
+```bash
+./kroxylicious-openmessaging-benchmarks/scripts/compare-results.sh \
+  ./results/baseline.json ./results/proxy-no-filters.json
+```
+
+This displays publish latency, end-to-end latency, and throughput side-by-side with deltas.
+
 ### Switch to Different Workload
 
 To run a different workload, upgrade the Helm release with a different `omb.workload` value (use whichever scenario values file you deployed with):
