@@ -121,3 +121,16 @@ for metric in \
     candidate_val=$(array_avg "$field" "$CANDIDATE")
     print_row "$label" "$baseline_val" "$candidate_val"
 done
+
+print_section_header "Throughput (msg/s)"
+
+for metric in \
+    "publishRate:Publish Rate" \
+    "consumeRate:Consume Rate"; do
+
+    field="${metric%%:*}"
+    label="${metric##*:}"
+    baseline_val=$(array_avg "$field" "$BASELINE")
+    candidate_val=$(array_avg "$field" "$CANDIDATE")
+    print_row "$label" "$baseline_val" "$candidate_val"
+done

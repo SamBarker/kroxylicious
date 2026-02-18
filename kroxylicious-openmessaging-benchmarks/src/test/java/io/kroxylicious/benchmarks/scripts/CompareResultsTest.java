@@ -49,7 +49,7 @@ class CompareResultsTest {
     }
 
     @Nested
-    class LatencyComparison {
+    class TwoFileComparison {
 
         private static ScriptUtils.ScriptResult result;
 
@@ -110,6 +110,31 @@ class CompareResultsTest {
             assertThat(result.output())
                     .as("Output should contain end-to-end p99 row with baseline ~36.10 and candidate ~43.30")
                     .containsPattern("p99\\s+36\\.10\\s+43\\.30");
+        }
+
+        @Test
+        void outputContainsThroughputHeader() {
+            assertThat(result.output())
+                    .as("Output should contain throughput section header")
+                    .contains("Throughput");
+        }
+
+        @Test
+        void outputContainsPublishRateWithCorrectValues() {
+            // Baseline publishRate: [50000.0, 49800.0, 50200.0] → avg = 50000.00
+            // Proxy publishRate: [49500.0, 49200.0, 49700.0] → avg = 49466.67
+            assertThat(result.output())
+                    .as("Output should contain Publish Rate row with baseline ~50000 and candidate ~49467")
+                    .containsPattern("Publish Rate\\s+50000\\.00\\s+49466\\.6[0-9]");
+        }
+
+        @Test
+        void outputContainsConsumeRateWithCorrectValues() {
+            // Baseline consumeRate: [49900.0, 50100.0, 50000.0] → avg = 50000.00
+            // Proxy consumeRate: [49400.0, 49600.0, 49500.0] → avg = 49500.00
+            assertThat(result.output())
+                    .as("Output should contain Consume Rate row with baseline ~50000 and candidate ~49500")
+                    .containsPattern("Consume Rate\\s+50000\\.00\\s+49500\\.00");
         }
     }
 }
