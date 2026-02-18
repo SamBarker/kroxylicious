@@ -78,6 +78,6 @@ public class ScriptUtils {
             Thread.currentThread().interrupt();
             fail("Failed to execute script: " + String.join(" ", command), e);
         }
-        return null;
+        throw new IllegalStateException("unreachable");
     }
 }
