@@ -9,6 +9,8 @@ package io.kroxylicious.benchmarks.scripts;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,10 +26,8 @@ class CompareResultsTest {
 
     @Test
     void helpExitsSuccessfullyAndShowsUsage() {
-        // When
         ScriptUtils.ScriptResult result = ScriptUtils.executeScript(SCRIPT_NAME, "--help");
 
-        // Then
         assertThat(result.exitCode())
                 .as("--help should exit with code 0")
                 .isZero();
@@ -38,10 +38,8 @@ class CompareResultsTest {
 
     @Test
     void noArgsExitsWithNonZero() {
-        // When
         ScriptUtils.ScriptResult result = ScriptUtils.executeScript(SCRIPT_NAME);
 
-        // Then
         assertThat(result.exitCode())
                 .as("No arguments should exit with non-zero code")
                 .isNotZero();
@@ -50,26 +48,43 @@ class CompareResultsTest {
                 .contains("Usage");
     }
 
-    @Test
-    void comparesPublishLatencyBetweenTwoFiles() {
-        // When
-        ScriptUtils.ScriptResult result = ScriptUtils.executeScript(SCRIPT_NAME,
-                BASELINE_FIXTURE.toString(), PROXY_FIXTURE.toString());
+    @Nested
+    class PublishLatencyComparison {
 
-        // Then
-        assertThat(result.exitCode())
-                .as("Comparison should succeed, output:\n%s", result.output())
-                .isZero();
-        assertThat(result.output())
-                .as("Output should contain publish latency header")
-                .contains("Publish Latency");
-        assertThat(result.output())
-                .as("Output should contain Avg row with baseline value 5.12")
-                .contains("Avg")
-                .contains("5.12");
-        assertThat(result.output())
-                .as("Output should contain p99 row with baseline value 25.60")
-                .contains("p99")
-                .contains("25.60");
+        private static ScriptUtils.ScriptResult result;
+
+        @BeforeAll
+        static void runComparison() {
+            result = ScriptUtils.executeScript(SCRIPT_NAME,
+                    BASELINE_FIXTURE.toString(), PROXY_FIXTURE.toString());
+        }
+
+        @Test
+        void exitSuccessfully() {
+            assertThat(result.exitCode())
+                    .as("Comparison should succeed, output:\n%s", result.output())
+                    .isZero();
+        }
+
+        @Test
+        void outputContainsPublishLatencyHeader() {
+            assertThat(result.output())
+                    .as("Output should contain publish latency section header")
+                    .contains("Publish Latency");
+        }
+
+        @Test
+        void outputContainsAvgLatencyWithCorrectValues() {
+            assertThat(result.output())
+                    .as("Output should contain Avg row with baseline 5.12 and candidate 6.34")
+                    .containsPattern("Avg\\s+5\\.12\\s+6\\.34");
+        }
+
+        @Test
+        void outputContainsP99LatencyWithCorrectValues() {
+            assertThat(result.output())
+                    .as("Output should contain p99 row with baseline 25.60 and candidate 29.10")
+                    .containsPattern("p99\\s+25\\.60\\s+29\\.10");
+        }
     }
 }
