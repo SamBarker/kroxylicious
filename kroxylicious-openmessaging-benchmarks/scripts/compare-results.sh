@@ -75,10 +75,22 @@ print_row() {
     printf "  %-25s %12.2f %12.2f %12.2f (%s%.1f%%)\n" "$label" "$baseline_val" "$candidate_val" "$delta" "$pct_sign" "$pct"
 }
 
-echo ""
-echo "Publish Latency (ms)"
-printf "  %-25s %12s %12s %12s\n" "Metric" "Baseline" "Candidate" "Delta"
-printf "  %-25s %12s %12s %12s\n" "-------------------------" "------------" "------------" "------------"
+# Prints a section header with column titles.
+# Arguments: section_title
+print_section_header() {
+    echo ""
+    echo "$1"
+    printf "  %-25s %12s %12s %12s\n" "Metric" "Baseline" "Candidate" "Delta"
+    printf "  %-25s %12s %12s %12s\n" "-------------------------" "------------" "------------" "------------"
+}
+
+# Computes the average of a JSON array field.
+# Arguments: field_name, json_file
+array_avg() {
+    jq ".$1 | add / length" "$2"
+}
+
+print_section_header "Publish Latency (ms)"
 
 for metric in \
     "aggregatedPublishLatencyAvg:Avg" \
@@ -91,5 +103,21 @@ for metric in \
     label="${metric##*:}"
     baseline_val=$(jq ".$field" "$BASELINE")
     candidate_val=$(jq ".$field" "$CANDIDATE")
+    print_row "$label" "$baseline_val" "$candidate_val"
+done
+
+print_section_header "End-to-End Latency (ms)"
+
+for metric in \
+    "endToEndLatencyAvg:Avg" \
+    "endToEndLatency50pct:p50" \
+    "endToEndLatency95pct:p95" \
+    "endToEndLatency99pct:p99" \
+    "endToEndLatency999pct:p99.9"; do
+
+    field="${metric%%:*}"
+    label="${metric##*:}"
+    baseline_val=$(array_avg "$field" "$BASELINE")
+    candidate_val=$(array_avg "$field" "$CANDIDATE")
     print_row "$label" "$baseline_val" "$candidate_val"
 done

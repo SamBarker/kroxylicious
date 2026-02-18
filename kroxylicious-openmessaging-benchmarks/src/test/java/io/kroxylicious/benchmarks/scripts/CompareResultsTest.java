@@ -49,7 +49,7 @@ class CompareResultsTest {
     }
 
     @Nested
-    class PublishLatencyComparison {
+    class LatencyComparison {
 
         private static ScriptUtils.ScriptResult result;
 
@@ -85,6 +85,31 @@ class CompareResultsTest {
             assertThat(result.output())
                     .as("Output should contain p99 row with baseline 25.60 and candidate 29.10")
                     .containsPattern("p99\\s+25\\.60\\s+29\\.10");
+        }
+
+        @Test
+        void outputContainsEndToEndLatencyHeader() {
+            assertThat(result.output())
+                    .as("Output should contain end-to-end latency section header")
+                    .contains("End-to-End Latency");
+        }
+
+        @Test
+        void outputContainsEndToEndAvgLatencyWithCorrectValues() {
+            // Baseline endToEndLatencyAvg: [8.50, 9.20, 8.80] → avg = 8.83
+            // Proxy endToEndLatencyAvg: [10.20, 10.80, 10.50] → avg = 10.50
+            assertThat(result.output())
+                    .as("Output should contain end-to-end Avg row with baseline ~8.83 and candidate ~10.50")
+                    .containsPattern("Avg\\s+8\\.8[0-9]\\s+10\\.50");
+        }
+
+        @Test
+        void outputContainsEndToEndP99LatencyWithCorrectValues() {
+            // Baseline endToEndLatency99pct: [35.40, 36.80, 36.10] → avg = 36.10
+            // Proxy endToEndLatency99pct: [42.60, 44.00, 43.30] → avg = 43.30
+            assertThat(result.output())
+                    .as("Output should contain end-to-end p99 row with baseline ~36.10 and candidate ~43.30")
+                    .containsPattern("p99\\s+36\\.10\\s+43\\.30");
         }
     }
 }
