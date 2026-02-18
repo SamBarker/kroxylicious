@@ -6,6 +6,9 @@
 
 package io.kroxylicious.benchmarks.scripts;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CompareResultsTest {
 
     private static final String SCRIPT_NAME = "compare-results.sh";
+    private static final Path BASELINE_FIXTURE = Paths.get("src/test/resources/omb-result-baseline.json").toAbsolutePath();
+    private static final Path PROXY_FIXTURE = Paths.get("src/test/resources/omb-result-proxy.json").toAbsolutePath();
 
     @Test
     void helpExitsSuccessfullyAndShowsUsage() {
@@ -43,5 +48,28 @@ class CompareResultsTest {
         assertThat(result.output())
                 .as("No arguments should still show usage")
                 .contains("Usage");
+    }
+
+    @Test
+    void comparesPublishLatencyBetweenTwoFiles() {
+        // When
+        ScriptUtils.ScriptResult result = ScriptUtils.executeScript(SCRIPT_NAME,
+                BASELINE_FIXTURE.toString(), PROXY_FIXTURE.toString());
+
+        // Then
+        assertThat(result.exitCode())
+                .as("Comparison should succeed, output:\n%s", result.output())
+                .isZero();
+        assertThat(result.output())
+                .as("Output should contain publish latency header")
+                .contains("Publish Latency");
+        assertThat(result.output())
+                .as("Output should contain Avg row with baseline value 5.12")
+                .contains("Avg")
+                .contains("5.12");
+        assertThat(result.output())
+                .as("Output should contain p99 row with baseline value 25.60")
+                .contains("p99")
+                .contains("25.60");
     }
 }
