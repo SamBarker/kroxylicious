@@ -8,9 +8,12 @@ package io.kroxylicious.benchmarks.results;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,22 +36,36 @@ class RunMetadataTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String FIXTURE_GIT_COMMIT = "abc123def456abc123def456abc123def456abc123";
     private static final String FIXTURE_GIT_BRANCH = "feat/test-branch";
+    private static Path cpuInfoPath;
+    private static Path memInfoPath;
+    private static Path actual;
+    private static String minikubeJson;
+    private static String generatedJson;
 
     // --- Integration-style tests (real CommandRunner) ---
 
-    @Test
-    void generateCreatesMetadataFile(@TempDir Path tempDir) throws IOException {
+    @BeforeAll
+    static void runGenerate(@TempDir Path tempDir) throws IOException, URISyntaxException {
         RunMetadata.generate(tempDir);
+        actual = tempDir.resolve("run-metadata.json");
+        assertThat(actual).exists()
+                .isReadable();
+        generatedJson = Files.readString(actual);
 
-        assertThat(tempDir.resolve("run-metadata.json")).exists();
+        cpuInfoPath = fixture("proc/cpuinfo");
+        memInfoPath = fixture("proc/meminfo");
+        minikubeJson = Files.readString(fixture("minikube-profile-list.json"));
+    }
+
+    @Test
+    void generateCreatesMetadataFile() {
+        assertThat(actual).exists();
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "gitCommit", "gitBranch", "timestamp", "hostSystem" })
-    void metadataContainsExpectedField(String fieldName, @TempDir Path tempDir) throws IOException {
-        RunMetadata.generate(tempDir);
-
-        JsonNode metadata = MAPPER.readTree(Files.readString(tempDir.resolve("run-metadata.json")));
+    void metadataContainsExpectedField(String fieldName) throws IOException {
+        JsonNode metadata = MAPPER.readTree(generatedJson);
         assertThat(metadata.has(fieldName))
                 .as("Metadata should contain %s field", fieldName)
                 .isTrue();
@@ -63,40 +80,32 @@ class RunMetadataTest {
     }
 
     @Test
-    void timestampIsIsoUtcFormat(@TempDir Path tempDir) throws IOException {
-        RunMetadata.generate(tempDir);
-
-        JsonNode metadata = MAPPER.readTree(Files.readString(tempDir.resolve("run-metadata.json")));
+    void timestampIsIsoUtcFormat() throws IOException {
+        JsonNode metadata = MAPPER.readTree(generatedJson);
         assertThat(metadata.get("timestamp").asText())
                 .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z");
     }
 
     @ParameterizedTest
     @ValueSource(strings = { "os", "osVersion", "osArch", "logicalCpus" })
-    void hostSystemContainsCrossPlatformFields(String fieldName, @TempDir Path tempDir) throws IOException {
-        RunMetadata.generate(tempDir);
-
-        JsonNode hostSystem = MAPPER.readTree(Files.readString(tempDir.resolve("run-metadata.json"))).get("hostSystem");
+    void hostSystemContainsCrossPlatformFields(String fieldName) throws IOException {
+        JsonNode hostSystem = MAPPER.readTree(generatedJson).get("hostSystem");
         assertThat(hostSystem.has(fieldName))
                 .as("hostSystem should contain %s", fieldName)
                 .isTrue();
     }
 
     @Test
-    void hostSystemOsFieldsMatchSystemProperties(@TempDir Path tempDir) throws IOException {
-        RunMetadata.generate(tempDir);
-
-        JsonNode hostSystem = MAPPER.readTree(Files.readString(tempDir.resolve("run-metadata.json"))).get("hostSystem");
+    void hostSystemOsFieldsMatchSystemProperties() throws IOException {
+        JsonNode hostSystem = MAPPER.readTree(generatedJson).get("hostSystem");
         assertThat(hostSystem.get("os").asText()).isEqualTo(System.getProperty("os.name"));
         assertThat(hostSystem.get("osVersion").asText()).isEqualTo(System.getProperty("os.version"));
         assertThat(hostSystem.get("osArch").asText()).isEqualTo(System.getProperty("os.arch"));
     }
 
     @Test
-    void hostSystemLogicalCpuCountIsPositive(@TempDir Path tempDir) throws IOException {
-        RunMetadata.generate(tempDir);
-
-        JsonNode hostSystem = MAPPER.readTree(Files.readString(tempDir.resolve("run-metadata.json"))).get("hostSystem");
+    void hostSystemLogicalCpuCountIsPositive() throws IOException {
+        JsonNode hostSystem = MAPPER.readTree(generatedJson).get("hostSystem");
         assertThat(hostSystem.get("logicalCpus").asInt()).isPositive();
     }
 
@@ -132,8 +141,7 @@ class RunMetadataTest {
     }
 
     @Test
-    void minikubeProfilePopulatedFromRunnerOutput(@TempDir Path tempDir) throws IOException, URISyntaxException {
-        String minikubeJson = Files.readString(fixture("minikube-profile-list.json"));
+    void minikubeProfilePopulatedFromRunnerOutput(@TempDir Path tempDir) throws IOException {
         RunMetadata.CommandRunner runner = mock(RunMetadata.CommandRunner.class);
         when(runner.run(eq("git"), any(String[].class))).thenReturn("unknown");
         when(runner.run(eq("minikube"), any(String[].class))).thenReturn(minikubeJson);
@@ -165,28 +173,29 @@ class RunMetadataTest {
     // --- parseProcEntries tests ---
 
     @Test
-    void parseProcEntriesExtractsCpuModel() throws IOException, URISyntaxException {
-        var info = RunMetadata.parseProcEntries(fixture("proc/cpuinfo"), fixture("proc/meminfo"));
+    void parseProcEntriesExtractsCpuModel() throws IOException {
+        //Given
+        var info = RunMetadata.parseProcCpuInfo(cpuInfoPath);
 
-        assertThat(info.get("cpuModel")).isEqualTo("Intel(R) Xeon(R) CPU E5-2643 v3 @ 3.40GHz");
+        assertThat(info).containsEntry("cpuModel", "Intel(R) Xeon(R) CPU E5-2643 v3 @ 3.40GHz");
     }
 
     @Test
-    void parseProcEntriesExtractsCpuMhz() throws IOException, URISyntaxException {
-        var info = RunMetadata.parseProcEntries(fixture("proc/cpuinfo"), fixture("proc/meminfo"));
+    void parseProcEntriesExtractsCpuMhz() throws IOException {
+        var info = RunMetadata.parseProcCpuInfo(cpuInfoPath);
 
         assertThat(info).containsKey("cpuMhz");
     }
 
     @Test
-    void parseProcEntriesExtractsTotalMemoryGb() throws IOException, URISyntaxException {
-        var info = RunMetadata.parseProcEntries(fixture("proc/cpuinfo"), fixture("proc/meminfo"));
+    void parseProcEntriesExtractsTotalMemoryGb() throws IOException {
+        var info = RunMetadata.parseProcMemInfo(memInfoPath);
 
-        assertThat(info.get("totalMemoryGb")).isEqualTo(31L);
+        assertThat(info).containsEntry("totalMemoryGb", 31L);
     }
 
     @Test
-    void parseProcEntriesReturnsEmptyMapForMissingFiles(@TempDir Path tempDir) throws IOException {
+    void parseProcEntriesReturnsEmptyMapForMissingFiles(@TempDir Path tempDir) {
         var info = RunMetadata.parseProcEntries(
                 tempDir.resolve("nonexistent-cpuinfo"),
                 tempDir.resolve("nonexistent-meminfo"));
@@ -194,7 +203,9 @@ class RunMetadataTest {
         assertThat(info).isEmpty();
     }
 
-    private Path fixture(String name) throws URISyntaxException {
-        return Path.of(getClass().getResource("/fixtures/" + name).toURI());
+    private static Path fixture(String name) throws URISyntaxException {
+        URL fixtureUrl = RunMetadataTest.class.getResource("/fixtures/" + name);
+        Assumptions.assumeTrue(fixtureUrl != null);
+        return Path.of(fixtureUrl.toURI());
     }
 }

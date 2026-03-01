@@ -33,6 +33,7 @@ public class RunMetadata {
     private static final DateTimeFormatter ISO_UTC = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
             .withZone(ZoneOffset.UTC);
     private static final String DEFAULT_UNKNOWN_VALUE = "unknown";
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RunMetadata.class);
 
     /**
      * Abstraction over external command execution, allowing tests to inject fixed responses.
@@ -118,30 +119,44 @@ public class RunMetadata {
     static Map<String, Object> parseProcEntries(Path cpuInfoPath, Path memInfoPath) {
         Map<String, Object> info = new LinkedHashMap<>();
         try {
-            List<String> cpuInfo = Files.readAllLines(cpuInfoPath, StandardCharsets.UTF_8);
-            cpuInfo.stream()
-                    .filter(l -> l.startsWith("model name"))
-                    .findFirst()
-                    .map(l -> l.substring(l.indexOf(':') + 1).trim())
-                    .ifPresent(model -> info.put("cpuModel", model));
-            cpuInfo.stream()
-                    .filter(l -> l.startsWith("cpu MHz"))
-                    .findFirst()
-                    .map(l -> l.substring(l.indexOf(':') + 1).trim())
-                    .ifPresent(mhz -> info.put("cpuMhz", mhz));
-            Files.readAllLines(memInfoPath, StandardCharsets.UTF_8).stream()
-                    .filter(l -> l.startsWith("MemTotal:"))
-                    .findFirst()
-                    .ifPresent(l -> {
-                        String[] parts = l.split("\\s+");
-                        if (parts.length >= 2) {
-                            info.put("totalMemoryGb", Long.parseLong(parts[1]) / (1024 * 1024));
-                        }
-                    });
+            info.putAll(parseProcCpuInfo(cpuInfoPath));
+            info.putAll(parseProcMemInfo(memInfoPath));
         }
         catch (Exception e) {
-            // /proc not available or unreadable
+            log.error("Failed to parse proc entries", e);
         }
+        return info;
+    }
+
+    static Map<String, Object> parseProcMemInfo(Path memInfoPath) throws IOException {
+        return Files.readAllLines(memInfoPath, StandardCharsets.UTF_8).stream()
+                .filter(l -> l.startsWith("MemTotal:"))
+                .findFirst()
+                .map(totalMem -> {
+                    String[] parts = totalMem.split("\\s+");
+                    if (parts.length >= 2) {
+                        return Map.<String, Object>of("totalMemoryGb", Long.parseLong(parts[1]) / (1024 * 1024));
+                    }
+                    else {
+                        return Map.<String, Object>of();
+                    }
+                })
+                .orElse(Map.of());
+    }
+
+    static Map<String, Object> parseProcCpuInfo(Path cpuInfoPath) throws IOException {
+        List<String> cpuInfo = Files.readAllLines(cpuInfoPath, StandardCharsets.UTF_8);
+        Map<String, Object> info = new LinkedHashMap<>();
+        cpuInfo.stream()
+                .filter(l -> l.startsWith("model name"))
+                .findFirst()
+                .map(l -> l.substring(l.indexOf(':') + 1).trim())
+                .ifPresent(model -> info.put("cpuModel", model));
+        cpuInfo.stream()
+                .filter(l -> l.startsWith("cpu MHz"))
+                .findFirst()
+                .map(l -> l.substring(l.indexOf(':') + 1).trim())
+                .ifPresent(mhz -> info.put("cpuMhz", mhz));
         return info;
     }
 
