@@ -174,7 +174,7 @@ class RunMetadataTest {
 
     @Test
     void parseProcEntriesExtractsCpuModel() throws IOException {
-        //Given
+        // Given
         var info = RunMetadata.parseProcCpuInfo(cpuInfoPath);
 
         assertThat(info).containsEntry("cpuModel", "Intel(R) Xeon(R) CPU E5-2643 v3 @ 3.40GHz");

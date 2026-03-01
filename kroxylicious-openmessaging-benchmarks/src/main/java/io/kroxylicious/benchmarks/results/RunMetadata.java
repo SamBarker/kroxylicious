@@ -135,10 +135,10 @@ public class RunMetadata {
                 .map(totalMem -> {
                     String[] parts = totalMem.split("\\s+");
                     if (parts.length >= 2) {
-                        return Map.<String, Object>of("totalMemoryGb", Long.parseLong(parts[1]) / (1024 * 1024));
+                        return Map.<String, Object> of("totalMemoryGb", Long.parseLong(parts[1]) / (1024 * 1024));
                     }
                     else {
-                        return Map.<String, Object>of();
+                        return Map.<String, Object> of();
                     }
                 })
                 .orElse(Map.of());
