@@ -135,8 +135,6 @@ teardown() {
     # Wait explicitly so the pvc-protection finalizer on the JFR PVC is released.
     kubectl wait pod -l "${PROXY_POD_LABEL}" -n "${NAMESPACE}" \
         --for=delete --timeout=60s 2>/dev/null || true
-    # Delete any stale jfr-collect pod — it mounts the JFR PVC and prevents its deletion
-    kubectl delete pod -l app=jfr-collect -n "${NAMESPACE}" --ignore-not-found --wait --timeout=60s
     # Delete Kafka PVCs to avoid cluster ID conflicts on next install
     kubectl delete pvc -l strimzi.io/cluster=kafka -n "${NAMESPACE}" --ignore-not-found
     # Delete JFR PVC if one was created
