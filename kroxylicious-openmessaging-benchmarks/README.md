@@ -440,6 +440,17 @@ Finds the benchmark pod, copies result JSON files from `/var/lib/omb/results`, a
 
 ## Troubleshooting
 
+### Leaving infrastructure running for post-failure inspection
+
+Pass `--skip-teardown` to `run-benchmark.sh` to prevent the script from tearing down
+infrastructure on exit, whether it succeeds or fails:
+
+```bash
+./scripts/run-benchmark.sh --skip-teardown baseline 1topic-1kb ./results/baseline/
+```
+
+The script will print the teardown commands to run manually when you are done inspecting.
+
 ### Kafka pods not starting
 
 Check Kafka logs:
