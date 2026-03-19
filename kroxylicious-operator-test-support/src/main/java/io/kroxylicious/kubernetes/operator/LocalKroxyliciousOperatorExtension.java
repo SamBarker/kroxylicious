@@ -27,10 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.HasMetadata;
-import io.fabric8.kubernetes.api.model.KubernetesResourceList;
 import io.fabric8.kubernetes.api.model.Secret;
-import io.fabric8.kubernetes.client.dsl.NonNamespaceOperation;
-import io.fabric8.kubernetes.client.dsl.Resource;
 import io.fabric8.kubernetes.client.readiness.Readiness;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.junit.LocallyRunOperatorExtension;
@@ -43,7 +40,6 @@ import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaCluster;
 import io.kroxylicious.proxy.tag.VisibleForTesting;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * A JUnit 5 extension that runs a Kroxylicious operator locally for integration testing.
@@ -259,35 +255,22 @@ public class LocalKroxyliciousOperatorExtension implements BeforeAllCallback, Af
         return localOperatorExtension.getNamespace();
     }
 
-    // ---- resource operations ----
-
+    /**
+     * Returns a {@link ClusterUser} backed by the admin Kubernetes client, scoped to the test namespace.
+     * <p>
+     * Use this to represent user-side interactions (creating CRs, reading state) as opposed to
+     * operator reactions. The operator is the system-under-test; the {@code ClusterUser} is the actor.
+     * <p>
+     * Must be called after {@code beforeAll}.
+     */
     @NonNull
-    public <T extends HasMetadata> T create(@NonNull T resource) {
-        return testActor.create(resource);
-    }
-
-    @Nullable
-    public <T extends HasMetadata> T get(@NonNull Class<T> type, @NonNull String name) {
-        return testActor.get(type, name);
-    }
-
-    @NonNull
-    public <T extends HasMetadata> T replace(@NonNull T resource) {
-        return testActor.replace(resource);
+    public ClusterUser clusterUser() {
+        return new ClusterUser(rbacHandler.userClient(), localOperatorExtension.getNamespace());
     }
 
     @NonNull
     public <T extends HasMetadata> T patchStatus(@NonNull T resource) {
         return testActor.patchStatus(resource);
-    }
-
-    public <T extends HasMetadata> boolean delete(@NonNull T resource) {
-        return testActor.delete(resource);
-    }
-
-    @NonNull
-    public <T extends HasMetadata> NonNamespaceOperation<T, KubernetesResourceList<T>, Resource<T>> resources(@NonNull Class<T> type) {
-        return testActor.resources(type);
     }
 
     public static Builder builder() {
