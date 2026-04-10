@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.model.VirtualClusterModel;
@@ -17,12 +18,18 @@ import io.kroxylicious.proxy.model.VirtualClusterModel;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class VirtualClusterManagerTest {
 
+    private static final String CLUSTER_A = "cluster-a";
+
     @SuppressWarnings("unchecked")
     private final BiConsumer<String, Optional<Throwable>> noOpCallback = mock(BiConsumer.class);
+
+    private VirtualClusterManager vcm;
 
     private static VirtualClusterModel mockModel(String name) {
         var model = mock(VirtualClusterModel.class);
@@ -30,13 +37,15 @@ class VirtualClusterManagerTest {
         return model;
     }
 
+    @BeforeEach
+    void setUp() {
+        vcm = new VirtualClusterManager(List.of(mockModel(CLUSTER_A)), noOpCallback);
+    }
+
     @Test
     void shouldCreateLifecycleManagerInInitializingState() {
-        // given
-        var vcm = new VirtualClusterManager(List.of(mockModel("cluster-a")), noOpCallback);
-
         // when
-        var manager = vcm.lifecycleManagerFor("cluster-a");
+        var manager = vcm.lifecycleManagerFor(CLUSTER_A);
 
         // then
         assertThat(manager).isNotNull()
@@ -47,20 +56,17 @@ class VirtualClusterManagerTest {
     @Test
     void shouldCreateLifecycleManagerForEachModel() {
         // given
-        var vcm = new VirtualClusterManager(
+        var multiVcm = new VirtualClusterManager(
                 List.of(mockModel("cluster-a"), mockModel("cluster-b")),
                 noOpCallback);
 
         // when/then
-        assertThat(vcm.lifecycleManagerFor("cluster-a")).isNotNull();
-        assertThat(vcm.lifecycleManagerFor("cluster-b")).isNotNull();
+        assertThat(multiVcm.lifecycleManagerFor("cluster-a")).isNotNull();
+        assertThat(multiVcm.lifecycleManagerFor("cluster-b")).isNotNull();
     }
 
     @Test
     void shouldReturnNullForUnknownCluster() {
-        // given
-        var vcm = new VirtualClusterManager(List.of(mockModel("cluster-a")), noOpCallback);
-
         // when
         var result = vcm.lifecycleManagerFor("nonexistent");
 
@@ -73,10 +79,10 @@ class VirtualClusterManagerTest {
         // given
         var modelA = mockModel("cluster-a");
         var modelB = mockModel("cluster-b");
-        var vcm = new VirtualClusterManager(List.of(modelA, modelB), noOpCallback);
+        var multiVcm = new VirtualClusterManager(List.of(modelA, modelB), noOpCallback);
 
         // when
-        var models = vcm.getVirtualClusterModels();
+        var models = multiVcm.getVirtualClusterModels();
 
         // then
         assertThat(models).containsExactly(modelA, modelB);
@@ -90,18 +96,92 @@ class VirtualClusterManagerTest {
 
     @Test
     void shouldRejectNullCallback() {
-        List<VirtualClusterModel> virtualClusterModels = List.of(mockModel("cluster-a"));
+        List<VirtualClusterModel> virtualClusterModels = List.of(mockModel(CLUSTER_A));
         assertThatThrownBy(() -> new VirtualClusterManager(virtualClusterModels, null))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void shouldRejectDuplicateClusterNames() {
-        List<VirtualClusterModel> virtualClusterModels = List.of(mockModel("cluster-a"), mockModel("cluster-a"));
+        List<VirtualClusterModel> virtualClusterModels = List.of(mockModel(CLUSTER_A), mockModel(CLUSTER_A));
         assertThatThrownBy(() -> new VirtualClusterManager(
                 virtualClusterModels,
                 noOpCallback))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("cluster-a");
+                .hasMessageContaining(CLUSTER_A);
+    }
+
+    // Per-VC lifecycle transitions
+
+    @Test
+    void shouldTransitionNamedClusterToServing() {
+        // when
+        vcm.initializationSucceeded(CLUSTER_A);
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+                .isInstanceOf(VirtualClusterLifecycleState.Serving.class);
+    }
+
+    @Test
+    void shouldNotFireCallbackOnInitializationSuccess() {
+        // when
+        vcm.initializationSucceeded(CLUSTER_A);
+
+        // then
+        verifyNoInteractions(noOpCallback);
+    }
+
+    @Test
+    void shouldTransitionToStoppedOnInitializationFailure() {
+        // given
+        var cause = new RuntimeException("filter init failed");
+
+        // when
+        vcm.initializationFailed(CLUSTER_A, cause);
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+                .isInstanceOf(VirtualClusterLifecycleState.Stopped.class);
+    }
+
+    @Test
+    void shouldFireCallbackOnInitializationFailure() {
+        // given
+        var cause = new RuntimeException("filter init failed");
+
+        // when
+        vcm.initializationFailed(CLUSTER_A, cause);
+
+        // then
+        verify(noOpCallback).accept(CLUSTER_A, Optional.of(cause));
+    }
+
+    @Test
+    void shouldRetainFailureCauseInStoppedState() {
+        // given
+        var cause = new RuntimeException("filter init failed");
+
+        // when
+        vcm.initializationFailed(CLUSTER_A, cause);
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+                .isInstanceOfSatisfying(VirtualClusterLifecycleState.Stopped.class,
+                        stopped -> assertThat(stopped.priorFailureCause()).isSameAs(cause));
+    }
+
+    @Test
+    void shouldThrowForUnknownClusterOnInitializationSucceeded() {
+        // when/then
+        assertThatThrownBy(() -> vcm.initializationSucceeded("nonexistent"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldThrowForUnknownClusterOnInitializationFailed() {
+        // when/then
+        assertThatThrownBy(() -> vcm.initializationFailed("nonexistent", new RuntimeException("boom")))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

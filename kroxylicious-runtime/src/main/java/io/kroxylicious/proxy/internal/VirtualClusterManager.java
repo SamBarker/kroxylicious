@@ -72,6 +72,33 @@ public class VirtualClusterManager {
     }
 
     /**
+     * Signals that the named virtual cluster initialized successfully.
+     * Transitions the cluster from Initializing to Serving.
+     *
+     * @param clusterName the virtual cluster name
+     * @throws IllegalArgumentException if no cluster with that name exists
+     */
+    public void initializationSucceeded(String clusterName) {
+        requireKnownCluster(clusterName).initializationSucceeded();
+    }
+
+    /**
+     * Signals that the named virtual cluster failed to initialize.
+     * Transitions the cluster from Initializing to Failed, then immediately to Stopped
+     * (no recovery path exists today), and fires the {@code onVirtualClusterStopped} callback.
+     *
+     * @param clusterName the virtual cluster name
+     * @param cause the failure cause
+     * @throws IllegalArgumentException if no cluster with that name exists
+     */
+    public void initializationFailed(String clusterName, Throwable cause) {
+        var manager = requireKnownCluster(clusterName);
+        manager.initializationFailed(cause);
+        manager.stop();
+        onVirtualClusterStopped.accept(clusterName, Optional.of(cause));
+    }
+
+    /**
      * Returns the lifecycle manager for the given virtual cluster name.
      * @param clusterName the virtual cluster name
      * @return the lifecycle manager, or null if no cluster with that name exists
@@ -79,5 +106,13 @@ public class VirtualClusterManager {
     @Nullable
     public VirtualClusterLifecycleManager lifecycleManagerFor(String clusterName) {
         return lifecycleManagers.get(clusterName);
+    }
+
+    private VirtualClusterLifecycleManager requireKnownCluster(String clusterName) {
+        var manager = lifecycleManagers.get(clusterName);
+        if (manager == null) {
+            throw new IllegalArgumentException("Unknown cluster: " + clusterName);
+        }
+        return manager;
     }
 }
