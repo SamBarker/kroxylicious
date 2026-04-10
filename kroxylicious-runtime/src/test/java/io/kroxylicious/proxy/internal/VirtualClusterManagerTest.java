@@ -88,12 +88,14 @@ class VirtualClusterManagerTest {
         assertThat(models).containsExactly(modelA, modelB);
     }
 
+    @SuppressWarnings("DataFlowIssue")
     @Test
     void shouldRejectNullModels() {
         assertThatThrownBy(() -> new VirtualClusterManager(null, noOpCallback))
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @SuppressWarnings("DataFlowIssue")
     @Test
     void shouldRejectNullCallback() {
         List<VirtualClusterModel> virtualClusterModels = List.of(mockModel(CLUSTER_A));
@@ -119,7 +121,8 @@ class VirtualClusterManagerTest {
         vcm.initializationSucceeded(CLUSTER_A);
 
         // then
-        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
                 .isInstanceOf(VirtualClusterLifecycleState.Serving.class);
     }
 
@@ -141,7 +144,8 @@ class VirtualClusterManagerTest {
         vcm.initializationFailed(CLUSTER_A, cause);
 
         // then
-        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
                 .isInstanceOf(VirtualClusterLifecycleState.Stopped.class);
     }
 
@@ -166,7 +170,8 @@ class VirtualClusterManagerTest {
         vcm.initializationFailed(CLUSTER_A, cause);
 
         // then
-        assertThat(vcm.lifecycleManagerFor(CLUSTER_A).getState())
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
                 .isInstanceOfSatisfying(VirtualClusterLifecycleState.Stopped.class,
                         stopped -> assertThat(stopped.priorFailureCause()).isSameAs(cause));
     }
@@ -181,7 +186,109 @@ class VirtualClusterManagerTest {
     @Test
     void shouldThrowForUnknownClusterOnInitializationFailed() {
         // when/then
-        assertThatThrownBy(() -> vcm.initializationFailed("nonexistent", new RuntimeException("boom")))
+        RuntimeException boom = new RuntimeException("boom");
+        assertThatThrownBy(() -> vcm.initializationFailed("nonexistent", boom))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // Bulk shutdown transitions
+
+    @Test
+    void shouldTransitionServingToDrainingOnBulkDrain() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+
+        // when
+        vcm.transitionAllToDraining();
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
+                .isInstanceOf(VirtualClusterLifecycleState.Draining.class);
+    }
+
+    @Test
+    void shouldTransitionInitializingToStoppedOnBulkDrain() {
+        // when
+        vcm.transitionAllToDraining();
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
+                .isInstanceOf(VirtualClusterLifecycleState.Stopped.class);
+    }
+
+    @Test
+    void shouldFireCallbackForInitializingStoppedDuringBulkDrain() {
+        // when
+        vcm.transitionAllToDraining();
+
+        // then
+        verify(noOpCallback).accept(CLUSTER_A, Optional.empty());
+    }
+
+    @Test
+    void shouldNotFireCallbackForServingToDrainingOnBulkDrain() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+
+        // when
+        vcm.transitionAllToDraining();
+
+        // then
+        verifyNoInteractions(noOpCallback);
+    }
+
+    @Test
+    void shouldTransitionDrainingToStoppedOnBulkStop() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+        vcm.transitionAllToDraining();
+
+        // when
+        vcm.transitionAllToStopped();
+
+        // then
+        assertThat(vcm.lifecycleManagerFor(CLUSTER_A)).isNotNull()
+                .extracting(VirtualClusterLifecycleManager::getState)
+                .isInstanceOf(VirtualClusterLifecycleState.Stopped.class);
+    }
+
+    @Test
+    void shouldFireCallbackWithEmptyCauseOnBulkStop() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+        vcm.transitionAllToDraining();
+
+        // when
+        vcm.transitionAllToStopped();
+
+        // then
+        verify(noOpCallback).accept(CLUSTER_A, Optional.empty());
+    }
+
+    @Test
+    void shouldReturnTrueWhenAllClustersStopped() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+        vcm.transitionAllToDraining();
+
+        // when
+        var allStopped = vcm.transitionAllToStopped();
+
+        // then
+        assertThat(allStopped).isTrue();
+    }
+
+    @Test
+    void shouldReturnFalseWhenNotAllClustersStopped() {
+        // given
+        vcm.initializationSucceeded(CLUSTER_A);
+
+        // when
+        var allStopped = vcm.transitionAllToStopped();
+
+        // then
+        assertThat(allStopped).isFalse();
     }
 }

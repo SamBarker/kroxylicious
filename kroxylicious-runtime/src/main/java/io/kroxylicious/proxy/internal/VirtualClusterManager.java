@@ -99,6 +99,44 @@ public class VirtualClusterManager {
     }
 
     /**
+     * Transitions all virtual clusters toward draining/stopped as appropriate for shutdown.
+     * <ul>
+     *   <li>Serving → Draining</li>
+     *   <li>Initializing → Stopped (fires callback with empty cause)</li>
+     *   <li>Failed → Stopped (already handled by initializationFailed)</li>
+     * </ul>
+     */
+    public void transitionAllToDraining() {
+        lifecycleManagers.forEach((name, manager) -> {
+            var state = manager.getState();
+            if (state instanceof VirtualClusterLifecycleState.Serving) {
+                manager.startDraining();
+            }
+            else if (state instanceof VirtualClusterLifecycleState.Initializing) {
+                manager.stop();
+                onVirtualClusterStopped.accept(name, Optional.empty());
+            }
+        });
+    }
+
+    /**
+     * Transitions all draining virtual clusters to stopped, firing the callback for each.
+     *
+     * @return true if all virtual clusters are now in the Stopped state
+     */
+    public boolean transitionAllToStopped() {
+        lifecycleManagers.forEach((name, manager) -> {
+            var state = manager.getState();
+            if (state instanceof VirtualClusterLifecycleState.Draining) {
+                manager.drainComplete();
+                onVirtualClusterStopped.accept(name, Optional.empty());
+            }
+        });
+        return lifecycleManagers.values().stream()
+                .allMatch(m -> m.getState() instanceof VirtualClusterLifecycleState.Stopped);
+    }
+
+    /**
      * Returns the lifecycle manager for the given virtual cluster name.
      * @param clusterName the virtual cluster name
      * @return the lifecycle manager, or null if no cluster with that name exists
