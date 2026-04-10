@@ -163,10 +163,10 @@ public final class KafkaProxy implements AutoCloseable {
         this.virtualClusterModels = config.virtualClusterModel();
         this.managementConfiguration = config.management();
         this.micrometerConfig = config.getMicrometer();
-        this.vcm = new VirtualClusterManager(virtualClusterModels, (clusterName, cause) -> STARTUP_SHUTDOWN_LOGGER.atInfo()
+        this.vcm = new VirtualClusterManager(virtualClusterModels, (clusterName, cause) -> STARTUP_SHUTDOWN_LOGGER.atWarn()
                 .addKeyValue("virtualCluster", clusterName)
                 .addKeyValue("cause", cause.orElse(null))
-                .log("Virtual cluster stopped"));
+                .log("Virtual cluster reached terminal stopped state, proxy shutdown required"));
     }
 
     @VisibleForTesting
@@ -270,6 +270,8 @@ public final class KafkaProxy implements AutoCloseable {
             STARTUP_SHUTDOWN_LOGGER.atError()
                     .setCause(e)
                     .log("Exception during startup, shutting down");
+            // TODO: the onVirtualClusterStopped callback should drive the serve:none policy (triggering proxy shutdown)
+            // rather than relying on the caller to call shutdown() separately. Currently the callback only logs.
             virtualClusterModels.forEach(model -> vcm.initializationFailed(model.getClusterName(), e));
             shutdown();
             throw new LifecycleException("Startup completed exceptionally", e);
