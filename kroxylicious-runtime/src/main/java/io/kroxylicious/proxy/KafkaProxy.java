@@ -151,7 +151,7 @@ public final class KafkaProxy implements AutoCloseable {
     private final NetworkBindingOperationProcessor bindingOperationProcessor = new DefaultNetworkBindingOperationProcessor();
     private final EndpointRegistry endpointRegistry = new EndpointRegistry(bindingOperationProcessor);
     private final PluginFactoryRegistry pfr;
-    private @Nullable VirtualClusterManager vcm;
+    private final VirtualClusterManager vcm;
     private @Nullable MeterRegistries meterRegistries;
     private @Nullable FilterChainFactory filterChainFactory;
     private @Nullable EventGroupConfig managementEventGroup;
@@ -163,6 +163,10 @@ public final class KafkaProxy implements AutoCloseable {
         this.virtualClusterModels = config.virtualClusterModel();
         this.managementConfiguration = config.management();
         this.micrometerConfig = config.getMicrometer();
+        this.vcm = new VirtualClusterManager(virtualClusterModels, (clusterName, cause) -> STARTUP_SHUTDOWN_LOGGER.atInfo()
+                .addKeyValue("virtualCluster", clusterName)
+                .addKeyValue("cause", cause.orElse(null))
+                .log("Virtual cluster stopped"));
     }
 
     @VisibleForTesting
@@ -220,11 +224,6 @@ public final class KafkaProxy implements AutoCloseable {
             STARTUP_SHUTDOWN_LOGGER.atInfo()
                     .log("Kroxylicious is starting");
 
-            this.vcm = new VirtualClusterManager(virtualClusterModels, (clusterName, cause) -> STARTUP_SHUTDOWN_LOGGER.atInfo()
-                    .addKeyValue("virtualCluster", clusterName)
-                    .addKeyValue("cause", cause.orElse(null))
-                    .log("Virtual cluster stopped"));
-
             meterRegistries = new MeterRegistries(pfr, micrometerConfig);
             initVersionInfoMetric();
 
@@ -271,9 +270,7 @@ public final class KafkaProxy implements AutoCloseable {
             STARTUP_SHUTDOWN_LOGGER.atError()
                     .setCause(e)
                     .log("Exception during startup, shutting down");
-            if (vcm != null) {
-                virtualClusterModels.forEach(model -> vcm.initializationFailed(model.getClusterName(), e));
-            }
+            virtualClusterModels.forEach(model -> vcm.initializationFailed(model.getClusterName(), e));
             shutdown();
             throw new LifecycleException("Startup completed exceptionally", e);
         }
@@ -371,9 +368,7 @@ public final class KafkaProxy implements AutoCloseable {
         try {
             STARTUP_SHUTDOWN_LOGGER.atInfo()
                     .log("Shutting down");
-            if (vcm != null) {
-                vcm.transitionAllToDraining();
-            }
+            vcm.transitionAllToDraining();
             endpointRegistry.shutdown().handle((u, t) -> {
                 bindingOperationProcessor.close();
                 var closeFutures = new ArrayList<Future<?>>();
@@ -395,9 +390,7 @@ public final class KafkaProxy implements AutoCloseable {
                 }
                 return null;
             }).toCompletableFuture().join();
-            if (vcm != null) {
-                vcm.transitionAllToStopped();
-            }
+            vcm.transitionAllToStopped();
             if (meterRegistries != null) {
                 meterRegistries.close();
             }
@@ -422,7 +415,7 @@ public final class KafkaProxy implements AutoCloseable {
     @VisibleForTesting
     @Nullable
     VirtualClusterLifecycleManager lifecycleManagerFor(String clusterName) {
-        return vcm != null ? vcm.lifecycleManagerFor(clusterName) : null;
+        return vcm.lifecycleManagerFor(clusterName);
     }
 
     @Override
