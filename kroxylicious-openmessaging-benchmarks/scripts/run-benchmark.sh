@@ -44,6 +44,9 @@ Runs a single benchmark scenario end-to-end:
 When a proxy pod is present (and --skip-deploy is not set), JFR and async-profiler CPU profiling
 are enabled automatically. Results include benchmark.jfr and flamegraph.html written to output-dir.
 
+Pod CPU and memory usage (proxy + Kafka) is polled via 'kubectl top' during the benchmark
+and written to resource-usage.tsv in the output directory.
+
 Arguments:
   scenario    Scenario name matching a file in helm/scenarios/<scenario>-values.yaml
               Available: baseline, proxy-no-filters, encryption
@@ -170,6 +173,7 @@ if [[ -n "${CLUSTER_OVERRIDES}" && ! -f "${CLUSTER_OVERRIDES}" ]]; then
 fi
 
 METRICS_PID=""
+RESOURCE_PID=""
 LOGS_PID=""
 
 teardown() {
@@ -177,6 +181,7 @@ teardown() {
     echo "--- Tearing down benchmark infrastructure ---"
     stop_logs_tailer
     stop_metrics_poller
+    stop_resource_poller
     if helm status "${HELM_RELEASE}" -n "${NAMESPACE}" &>/dev/null; then
         helm uninstall "${HELM_RELEASE}" -n "${NAMESPACE}" --wait --timeout 120s
     fi
@@ -282,6 +287,27 @@ stop_metrics_poller() {
         kill "${METRICS_PID}" 2>/dev/null || true
         wait "${METRICS_PID}" 2>/dev/null || true
         METRICS_PID=""
+    fi
+}
+
+KAFKA_POD_LABEL="strimzi.io/cluster=kafka,strimzi.io/pool-name=kafka-pool"
+
+start_resource_poller() {
+    echo "Starting resource usage polling (every ${METRICS_INTERVAL}s)..."
+    mkdir -p "${OUTPUT_DIR}"
+    "${SCRIPT_DIR}/poll-resource-usage.sh" \
+        "${NAMESPACE}" "${OUTPUT_DIR}" "${METRICS_INTERVAL}" \
+        "${PROXY_POD_LABEL}" "${KAFKA_POD_LABEL}" &
+    RESOURCE_PID=$!
+    echo "Resource poller running (PID ${RESOURCE_PID})"
+}
+
+stop_resource_poller() {
+    if [[ -n "${RESOURCE_PID}" ]]; then
+        echo "Stopping resource poller (PID ${RESOURCE_PID})..."
+        kill "${RESOURCE_PID}" 2>/dev/null || true
+        wait "${RESOURCE_PID}" 2>/dev/null || true
+        RESOURCE_PID=""
     fi
 }
 
@@ -594,6 +620,7 @@ fi
 create_benchmark_job
 
 start_metrics_poller
+start_resource_poller
 
 echo ""
 echo "--- Running benchmark (${SCENARIO} / ${WORKLOAD}) ---"
@@ -690,6 +717,7 @@ if [[ -n "${PROXY_POD}" ]]; then
 fi
 
 stop_metrics_poller
+stop_resource_poller
 
 # --- Collect results ---
 
