@@ -207,10 +207,9 @@ public final class KafkaProxy implements AutoCloseable {
 
     /**
      * Starts this proxy.
-     * @return This proxy.
+     * @return a future that completes when the proxy stops (normally or exceptionally).
      */
-    @SuppressWarnings("java:S5738")
-    public KafkaProxy startup() {
+    public CompletableFuture<Void> startup() {
         if (running.getAndSet(true)) {
             throw new IllegalStateException("This proxy is already running");
         }
@@ -278,7 +277,7 @@ public final class KafkaProxy implements AutoCloseable {
 
             STARTUP_SHUTDOWN_LOGGER.atInfo()
                     .log("Kroxylicious is started");
-            return this;
+            return shutdown;
         }
         catch (RuntimeException e) {
             STARTUP_SHUTDOWN_LOGGER.atError()
