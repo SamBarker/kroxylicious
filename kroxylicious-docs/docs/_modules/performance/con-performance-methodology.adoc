@@ -1,0 +1,40 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: CONCEPT
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='con-performance-methodology-{context}']
+= Methodology
+
+[role="_abstract"]
+All benchmarks use link:https://github.com/openmessaging/benchmark[OpenMessaging Benchmark (OMB)^], an industry-standard tool for measuring messaging system performance.
+
+Three scenarios were run against the same Kafka cluster on the same hardware:
+
+Baseline:: OMB producers and consumers communicated directly with Kafka.
+Proxy (no filters):: Traffic passed through Kroxylicious with no filter chain configured.
+Encryption:: Traffic passed through Kroxylicious with the record encryption filter enabled (AES-256-GCM, Vault KMS).
+
+For throughput ceiling testing, _rate sweeps_ were used — running the same workload at progressively higher producer rates and measuring where the system saturated (achieved rate dropped below 95% of target).
+
+The primary workload used a single topic with a single partition.
+This deliberately concentrates all traffic on a single broker, reaching the broker's per-partition throughput limit at lower absolute rates and making proxy overhead easier to isolate and measure.
+Multi-topic workloads verified that overhead characteristics hold when load is spread across brokers.
+
+== Workloads
+
+[cols="1,1,1,1,1",options="header"]
+|===
+| Workload | Topics | Partitions per topic | Message size | Producer rate
+
+| 1topic-1kb  | 1   | 1 | 1 KB | 50,000 msg/s
+| 10topics-1kb  | 10  | 1 | 1 KB | 5,000 msg/s (per topic)
+| 100topics-1kb | 100 | 1 | 1 KB | 500 msg/s (per topic)
+|===

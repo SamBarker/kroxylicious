@@ -1,0 +1,14 @@
+#
+# Copyright Kroxylicious Authors.
+#
+# Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+#
+
+$schema: https://kroxylicious.io/doc-schema.yaml
+title: Performance and Sizing Guide
+description: Sizing Kroxylicious for production deployments — passthrough overhead and record encryption CPU budgeting.
+tags:
+  - performance
+  - sizing
+  - record-encryption
+rank: "025"

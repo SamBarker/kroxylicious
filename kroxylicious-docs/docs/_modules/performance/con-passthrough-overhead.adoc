@@ -1,0 +1,47 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: CONCEPT
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='con-passthrough-overhead-{context}']
+= Proxy overhead with no filters
+
+[role="_abstract"]
+The passthrough proxy adds minimal overhead.
+At sub-saturation rates, the additional latency is sub-millisecond on average.
+
+== 10 topics, 1 KB messages (5,000 msg/s per topic)
+
+[cols="1,1,1,1",options="header"]
+|===
+| Metric | Baseline | Proxy | Delta
+
+| Publish latency avg | 2.62 ms | 2.79 ms | +0.17 ms (+6.6%)
+| Publish latency p99 | 14.09 ms | 15.17 ms | +1.08 ms (+7.7%)
+| E2E latency avg | 94.87 ms | 95.34 ms | +0.47 ms (+0.5%)
+| E2E latency p99 | 185.00 ms | 186.00 ms | +1.00 ms (+0.5%)
+| Publish rate | 5,002 msg/s | 5,002 msg/s | 0
+|===
+
+== 100 topics, 1 KB messages (500 msg/s per topic)
+
+[cols="1,1,1,1",options="header"]
+|===
+| Metric | Baseline | Proxy | Delta
+
+| Publish latency avg | 2.66 ms | 2.82 ms | +0.16 ms (+6.2%)
+| Publish latency p99 | 5.54 ms | 6.07 ms | +0.53 ms (+9.5%)
+| E2E latency avg | 253.16 ms | 253.76 ms | +0.60 ms (+0.2%)
+| E2E latency p99 | 499.00 ms | 499.00 ms | 0
+| Publish rate | 500 msg/s | 500 msg/s | 0
+|===
+
+The proxy layer adds approximately 0.2 ms average publish latency and has no measurable impact on throughput.
+End-to-end latency is dominated by consumer fetch intervals, so the proxy's contribution is negligible in that metric.

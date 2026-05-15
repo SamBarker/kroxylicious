@@ -1,0 +1,28 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:experimental:
+include::_assets/attributes.adoc[]
+
+:context: performance
+:guide: performance
+
+[id="using-book-{context}"]
+= Performance and Sizing Guide
+
+include::_modules/performance/con-about-performance-guide.adoc[leveloffset=+1]
+
+include::_modules/performance/con-performance-methodology.adoc[leveloffset=+1]
+
+include::_modules/performance/con-passthrough-overhead.adoc[leveloffset=+1]
+
+include::_modules/performance/con-encryption-overhead.adoc[leveloffset=+1]
+
+include::_modules/performance/con-encryption-sizing.adoc[leveloffset=+1]
+
+include::_modules/performance/ref-performance-limitations.adoc[leveloffset=+1]
+
+include::_modules/performance/ref-performance-test-environment.adoc[leveloffset=+1]

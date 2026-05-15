@@ -1,0 +1,33 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: REFERENCE
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='ref-performance-test-environment-{context}']
+= Test environment
+
+[role="_abstract"]
+All benchmarks were run on the following hardware and software configuration.
+
+[cols="1,1",options="header"]
+|===
+| Component | Details
+
+| Cluster | 6 nodes, 8 vCPUs / 15 GB RAM each
+| CPU | AMD EPYC-Rome, 2000 MHz
+| OS | Red Hat Enterprise Linux CoreOS 9.6
+| Kernel | 5.14.0-570.103.1.el9_6.x86_64
+| Kubernetes | v1.34.5
+| Kafka | 3 brokers (Strimzi)
+| Kroxylicious | {KroxyliciousVersion}, single proxy pod
+| KMS | HashiCorp Vault (in-cluster)
+| Benchmark tool | OpenMessaging Benchmark
+| Orchestrator | Linux amd64, 4 vCPUs, 7 GB RAM, AMD EPYC-Rome
+|===

@@ -1,0 +1,111 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: CONCEPT
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='con-encryption-overhead-{context}']
+= Record encryption overhead
+
+[role="_abstract"]
+Encryption adds measurable latency and reduces the maximum sustainable throughput.
+
+== Latency at sub-saturation rates
+
+The encryption overhead scales with producer rate.
+At lower rates the proxy has more headroom; as rate approaches the saturation point, latency increases sharply.
+
+1 topic, 1 KB messages — baseline versus encryption at three sub-saturation rates:
+
+[cols="1,1,1,1,1",options="header"]
+|===
+| Rate (msg/s) | Metric | Baseline | Encryption | Delta
+
+| 34,000 | Publish latency avg | 8.00 ms | 8.19 ms | +0.19 ms (+2%)
+| 34,000 | Publish latency p99 | 48.65 ms | 64.01 ms | +15.35 ms (+32%)
+| 34,000 | E2E latency p99 | 51.00 ms | 70.00 ms | +19.00 ms (+37%)
+| 36,000 | Publish latency avg | 9.38 ms | 10.46 ms | +1.08 ms (+12%)
+| 36,000 | Publish latency p99 | 63.92 ms | 88.98 ms | +25.06 ms (+39%)
+| 36,000 | E2E latency p99 | 66.00 ms | 115.00 ms | +49.00 ms (+74%)
+| 37,200 | Publish latency avg | 9.12 ms | 12.19 ms | +3.07 ms (+34%)
+| 37,200 | Publish latency p99 | 74.88 ms | 113.15 ms | +38.27 ms (+51%)
+| 37,200 | E2E latency p99 | 76.00 ms | 137.00 ms | +61.00 ms (+80%)
+|===
+
+=== Multi-topic latency (sub-saturation)
+
+At lower per-topic rates, encryption overhead is smaller in absolute terms.
+
+*10 topics (5,000 msg/s per topic):*
+
+[cols="1,1,1,1",options="header"]
+|===
+| Metric | Baseline | Encryption | Delta
+
+| Publish latency avg | 2.62 ms | 5.86 ms | +3.24 ms (+124%)
+| Publish latency p99 | 14.09 ms | 23.36 ms | +9.27 ms (+66%)
+|===
+
+*100 topics (500 msg/s per topic):*
+
+[cols="1,1,1,1",options="header"]
+|===
+| Metric | Baseline | Encryption | Delta
+
+| Publish latency avg | 2.66 ms | 3.20 ms | +0.54 ms (+20%)
+| Publish latency p99 | 5.54 ms | 7.64 ms | +2.10 ms (+38%)
+| Publish rate | 50,016 msg/s | 50,013 msg/s | negligible
+|===
+
+== Throughput ceiling
+
+Using rate sweeps on a single partition (1 topic, 1 KB messages, 5% steps from 34,000–42,000 msg/s):
+
+* *Baseline:* sustained target rate at every probe up to 42,000 msg/s (and up to approximately 50,000 msg/s in wider sweeps — the partition limit).
+* *Encryption:* sustained up to *37,200 msg/s*. First failure occurred at 37,600 (p99 spiked to 2,031 ms). Above 38,800, behaviour was intermittent.
+
+Estimated throughput cost of encryption: approximately 13,000 msg/s (approximately 26%) per partition.
+
+The transition zone (37,600–42,000) was not a clean step function:
+
+[cols="1,1",options="header"]
+|===
+| Rate range | Behaviour
+
+| 34,000–37,200 | Stable. All probes sustained, p99 70–200 ms.
+| 37,600–38,400 | Unstable. First blow-up at 37,600, partial recovery at 38,000.
+| 38,800–42,000 | Intermittent saturation. Approximately 50% of probes fail or show >1,000 ms p99.
+|===
+
+The saturation was confirmed by proxy back-pressure metrics (`server_to_proxy_reads_paused_seconds`).
+At 36,000 msg/s, read pauses were modest.
+At 40,800 msg/s, pauses doubled and spread across multiple broker connections — the proxy could not keep up and back-pressured Kafka.
+
+== Where the CPU goes
+
+Comparing CPU flamegraphs between the no-filter proxy and encryption showed that the no-filter proxy is almost entirely I/O-bound (59% of CPU in send/recv syscalls).
+Encryption adds approximately 13% direct crypto cost (AES-256-GCM) plus approximately 20% indirect costs (buffer management, GC pressure, record re-encoding), totalling approximately 33% additional CPU — consistent with the approximately 26% throughput reduction.
+
+[cols="1,1,1,1",options="header"]
+|===
+| Category | No-filters | Encryption | Delta
+
+| Syscalls (send/recv) | 59.2% | 23.5% | -35.7%
+| Native/VM | 16.7% | 18.9% | +2.2%
+| JCA/AES-GCM crypto | 0.0% | 11.3% | +11.3%
+| Memory operations | 4.7% | 10.4% | +5.8%
+| JDK libraries | 2.9% | 9.3% | +6.4%
+| GC / JVM housekeeping | 0.1% | 5.0% | +4.9%
+| Netty I/O | 10.5% | 5.1% | -5.4%
+| Kafka protocol | 0.4% | 3.5% | +3.1%
+| Kroxylicious encryption filter | 0.0% | 2.0% | +2.0%
+| Kroxylicious proxy | 1.4% | 1.9% | +0.6%
+|===
+
+NOTE: Send/recv and Netty I/O decrease as a percentage share because encryption adds CPU work that grows the total — the absolute I/O cost is similar between the two scenarios.

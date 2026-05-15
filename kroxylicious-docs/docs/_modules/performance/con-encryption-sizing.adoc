@@ -1,0 +1,129 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: CONCEPT
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='con-encryption-sizing-{context}']
+= Sizing for record encryption
+
+[role="_abstract"]
+The per-partition ceiling understates aggregate proxy capacity because it conflates the Kafka broker partition limit with the proxy CPU limit.
+Connection sweeps (fixed per-producer rate, increasing producer count, 10-topic RF=1 workload) isolate the proxy's saturation point independent of any single partition and confirm that throughput scales linearly with CPU allocation.
+
+== CPU sizing coefficient
+
+The measured coefficient is approximately *10 millicores per MB/s of proxy throughput* on AMD EPYC-Rome at 2 GHz with AES-NI.
+
+AES-256-GCM encrypt and decrypt have the same per-byte cost (~10 mc/MB/s each).
+
+=== Sizing formula
+
+[source]
+----
+CPU (millicores) = 10 × total_proxy_MB_per_s
+----
+
+Where `total_proxy_MB_per_s` is the sum of all traffic flowing through the proxy: count produce throughput once (each MB/s gets encrypted), and each consumer group's consume throughput once (each group's traffic gets decrypted independently).
+
+Fan-out is handled naturally.
+For example, a topic with one producer at 100 MB/s and five consumer groups each reading at 100 MB/s totals 600 MB/s × 10 mc = 6,000 mc.
+
+For balanced 1:1 produce/consume workloads, this simplifies to `20 × produce_MB_per_s`.
+
+Equivalently: approximately 1 core per 100 MB/s of total proxy traffic, or approximately 40,000 msg/s per core at 1 KB per stream (80 MB/s bidirectional for 1:1 produce/consume).
+
+=== Coefficient derivation
+
+The coefficient was derived from the 4-core connection sweep at 80,000 msg/s (mid-utilisation, cleanest bidirectional measurement):
+
+----
+net AES CPU   = 1,863 mc (encryption) − 299 mc (proxy-no-filters baseline) = 1,564 mc
+total traffic = 80,000 × 1,024 B (produce) + 80,000 × 1,024 B (consume) = ~160 MB/s
+coefficient   = 1,564 mc / 160 MB/s ≈ 10 mc/MB/s
+----
+
+=== Example sizing table (1 KB messages)
+
+[cols="1,1,1",options="header"]
+|===
+| Scenario | Total proxy traffic | CPU required
+
+| 40,000 msg/s, 1 consumer group | 80 MB/s | 800 mc (~1 core)
+| 100,000 msg/s, 1 consumer group | 200 MB/s | 2,000 mc (2 cores)
+| 100,000 msg/s, 3 consumer groups | 400 MB/s | 4,000 mc (4 cores)
+| 200,000 msg/s, 1 consumer group | 400 MB/s | 4,000 mc (4 cores)
+|===
+
+Add ×1.3 headroom for GC pauses and burst traffic.
+
+=== Linear scaling validation
+
+Connection sweeps were run at 1, 2, and 4 CPU cores (10-topic, RF=1, 1 KB messages):
+
+[cols="1,1,1,1",options="header"]
+|===
+| CPU allocation | Per-core ceiling | Observed safe ceiling | Saturation onset
+
+| 1 core (1,000 mc) | 40,000 msg/s | ~37,000 msg/s | ~40,000
+| 2 cores (2,000 mc) | 40,000 msg/s × 2 = 80,000 | 80,000 msg/s (1,660 ms p99) | 160,000 (175 s p99)
+| 4 cores (4,000 mc) | 40,000 msg/s × 4 = 160,000 | 160,000 msg/s (447 ms p99) | 320,000 (537 s p99)
+|===
+
+=== Root cause: Netty event loop thread model
+
+The per-core ceiling is a consequence of how Netty assigns connections to threads.
+Each Netty event loop thread handles all connections assigned to it serially.
+The CPU limit controls thread count via the JVM's container awareness: a pod with `cpu: 1000m` results in `availableProcessors()=1`, which causes Netty to create one worker thread per event loop group.
+One thread can sustain approximately 40,000 msg/s of bidirectional AES-256-GCM encryption at 1 KB.
+Additional CPU cores allow additional threads to run concurrently, scaling throughput linearly.
+
+IMPORTANT: Set CPU `requests` equal to `limits` (Guaranteed QoS class).
+The proxy's event loop thread count is derived from `availableProcessors()`, which respects the CPU limit.
+Burstable pods risk inconsistent concurrency under node pressure.
+
+NOTE: AES-NI is present on the test CPUs. On CPUs without hardware AES acceleration the coefficient will be significantly higher. Always validate with a load test before committing to a production sizing.
+
+== Sizing recommendations
+
+=== Passthrough proxy (no filters)
+
+The proxy layer adds negligible overhead.
+Size your Kafka cluster as you normally would — the proxy will not be the bottleneck.
+
+=== Record encryption
+
+When planning for record encryption:
+
+. *CPU sizing*: Apply the formula:
++
+[source]
+----
+CPU (millicores) = 10 × total_proxy_MB_per_s
+----
++
+where `total_proxy_MB_per_s` = produce MB/s + each consumer group's consume MB/s.
+For balanced 1:1 workloads this is `20 × produce_MB_per_s`.
+For fan-out topics, sum the full consume throughput across all consumer groups.
+Add ×1.3 headroom for GC pauses and burst.
+
+. *Throughput budget*: Expect approximately 25% throughput reduction per partition compared to direct Kafka access when the proxy has 1 core available.
+With more cores, the proxy ceases to be the bottleneck before the partition limit is reached.
+
+. *Latency budget*: At sub-saturation rates, expect:
+* Average publish latency to increase 2–34% depending on how close to the saturation point (~0.2–3 ms additional).
+* p99 publish latency to increase 30–50% (~15–40 ms additional).
+* Overhead scales with rate — well below saturation, encryption adds very little latency.
+
+. *Scaling*: The proxy scales vertically (more cores per pod) and horizontally (more pods).
+Both approaches are effective.
+Horizontal scaling reduces blast radius per pod.
+
+. *KMS overhead*: DEK generation and caching means the KMS is not in the hot path for every record.
+KMS latency is unlikely to be a factor unless your KMS is very slow or unavailable.

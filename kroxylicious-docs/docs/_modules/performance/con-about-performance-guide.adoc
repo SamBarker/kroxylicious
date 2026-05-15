@@ -1,0 +1,35 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: CONCEPT
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='con-about-performance-guide-{context}']
+= About this guide
+
+[role="_abstract"]
+This guide helps operators estimate the performance impact of deploying Kroxylicious as a proxy layer in front of Apache Kafka.
+It covers two configurations: a passthrough proxy with no filters enabled, and a proxy with the record encryption filter.
+
+The goal is to give you the data you need to right-size your deployment: how much additional latency to expect, and where the throughput ceiling sits.
+
+== Summary
+
+Passthrough proxy (no filters)::
+Negligible overhead.
+Average publish latency increased by approximately 0.2 ms (+6%), with no measurable throughput impact.
+The proxy layer itself is not a bottleneck.
+
+Record encryption (AES-256-GCM)::
+Measurable but predictable overhead.
++
+* *Throughput:* approximately 26% reduction per partition (approximately 37,000 msg/s versus approximately 50,000 msg/s baseline with 1 KB messages).
+* *Latency at sub-saturation rates:* average publish latency increased by 0.2–3 ms depending on load; p99 increased by 15–40 ms.
+* *CPU cost:* encryption adds approximately 33% CPU overhead (13% direct crypto, 20% buffer management, GC, and re-encoding), consistent with the throughput reduction.
+* *Scaling:* throughput scales linearly with CPU allocation — approximately 40,000 msg/s per core at 1 KB. Validated at 1, 2, and 4 cores. Set `requests == limits` for a predictable, stable thread count.

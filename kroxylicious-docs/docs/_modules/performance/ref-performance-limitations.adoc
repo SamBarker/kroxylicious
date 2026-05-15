@@ -1,0 +1,34 @@
+////
+  // Copyright Kroxylicious Authors.
+  //
+  // Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+////
+
+:_mod-docs-content-type: REFERENCE
+
+// file included in the following:
+//
+// performance-guide/index.adoc
+
+[id='ref-performance-limitations-{context}']
+= Measurement limitations
+
+[role="_abstract"]
+The following limitations apply to the benchmark results presented in this guide.
+
+Single-pass measurements:: Each rate point was measured once.
+Environmental noise (pod scheduling, GC pauses, noisy neighbours) can affect individual probes.
+Multi-pass aggregation would improve confidence intervals.
+
+Single proxy pod:: All tests used a single proxy instance.
+Horizontal scaling characteristics are not yet measured.
+
+Single partition saturation:: The 1-topic rate sweep workload hits Kafka's per-partition throughput limit (~50,000 msg/s), which is close to the encryption ceiling.
+The connection sweep and coefficient derivation used a 10-topic RF=1 workload to eliminate this ceiling.
+
+Hardware-specific:: Encryption is CPU-bound.
+Results will differ on other CPU architectures and clock speeds.
+The coefficient assumes AES-NI hardware acceleration.
+
+Linear scaling validated at 1, 2, and 4 cores:: The formula held across all three measurements.
+Behaviour beyond 4 cores is untested but expected to follow the same model.
