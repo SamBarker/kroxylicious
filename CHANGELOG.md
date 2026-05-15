@@ -29,6 +29,7 @@ Format `<github issue/pr number>: <short description>`.
 
 ### Changes, deprecations and removals
 
+* [#3828](https://github.com/kroxylicious/kroxylicious/pull/3828): remove `KafkaProxy.block()` — use `startup().join()` instead. KafkaProxy is considered internal API hence we are skipping the deprecation cycle
 * [#3882](https://github.com/kroxylicious/kroxylicious/pull/3882): The primary proxy container image is now `quay.io/kroxylicious/proxy`. `quay.io/kroxylicious/kroxylicious` is deprecated and subject to removal following our deprecation policy. Users deploying the proxy image directly (without the operator) should update their deployment configurations to use the new image name. The operator will automatically use the new image name.
 * The `kroxylicious-kms-tls-support` module now uses the package `io.kroxylicious.testing.kms.tls` (was `io.kroxylicious.proxy.tls`). 3rd party KMS providers that depend on this module will need to update their imports.
 * [#3861](https://github.com/kroxylicious/kroxylicious/pull/3861): The `kroxylicious-*-test-support` modules now consistently use the package prefix `io.kroxylicious.testing`. Many of these modules modules are effectively internal, but 3rd party filters may have a dependency on `kroxylicious-filter-test-support` and 3rd party KMSes may have a dependency on `kroxylicious-kms-test-support`. When upgrading you will need to use the new package name in your tests.
