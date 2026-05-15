@@ -403,15 +403,6 @@ public final class KafkaProxy implements AutoCloseable {
     }
 
     /**
-     * Blocks while this proxy is running.
-     * @deprecated Use {@code startup().join()} instead.
-     */
-    @Deprecated(since = "0.21.0")
-    public void block() {
-        shutdown.join();
-    }
-
-    /**
      * Shuts down a running proxy. Idempotent: safe to call from any thread, including JVM shutdown hooks,
      * and safe to call before {@link #startup()} or after already stopped.
      */
