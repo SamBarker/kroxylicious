@@ -20,6 +20,7 @@ METRICS_INTERVAL="${METRICS_INTERVAL:-30}"
 # Should exceed testDurationMinutes + warmupDurationMinutes + setup overhead.
 PROBE_TIMEOUT="${PROBE_TIMEOUT:-3600}"
 RESULTS_PVC_NAME="${RESULTS_PVC_NAME:-omb-results}"
+BUSYBOX_IMAGE="${BUSYBOX_IMAGE:-busybox:1.37.0@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f}"
 
 PROXY_POD_LABEL="app.kubernetes.io/name=kroxylicious,app.kubernetes.io/component=proxy,app.kubernetes.io/instance=benchmark-proxy"
 
@@ -74,6 +75,7 @@ Environment:
   PROBE_TIMEOUT                Max seconds to wait for the benchmark to complete (default: 3600)
   METRICS_INTERVAL             Proxy metrics polling interval in seconds (default: 30)
   JFR_MAX_SIZE_MB              Maximum size of the JFR recording in megabytes (default: 64)
+  BUSYBOX_IMAGE                Busybox image for result collection pods (default: docker.io busybox:1.37.0)
 
 Examples:
   $(basename "$0") baseline 1topic-1kb ./results/baseline/
@@ -373,7 +375,7 @@ spec:
       claimName: ${RESULTS_PVC_NAME}
   containers:
   - name: reader
-    image: busybox:1.37.0@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f
+    image: ${BUSYBOX_IMAGE}
     command: ["sleep", "infinity"]
     volumeMounts:
     - name: results

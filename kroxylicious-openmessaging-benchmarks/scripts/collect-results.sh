@@ -12,6 +12,7 @@ MODULE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FILTERED="${MODULE_DIR}/target/jbang/generated-sources/io/kroxylicious/benchmarks/results/cli/CollectResults.java"
 
 NAMESPACE="${NAMESPACE:-kafka}"
+BUSYBOX_IMAGE="${BUSYBOX_IMAGE:-busybox:1.37.0@sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f}"
 
 usage() {
     cat >&2 <<EOF
@@ -33,6 +34,7 @@ Environment:
   NAMESPACE                 Kubernetes namespace (default: kafka)
   JFR_PVC_NAME              Name of the PVC holding the JFR recording (set by run-benchmark.sh)
   PROXY_POD                 Name of the proxy pod to collect JFR from (set by run-benchmark.sh)
+  BUSYBOX_IMAGE             Busybox image for debug pod (default: docker.io busybox:1.37.0)
 
 Prerequisites:
   - kubectl configured with access to the cluster
@@ -140,7 +142,7 @@ spec:
       claimName: ${JFR_PVC_NAME}
   containers:
   - name: debug
-    image: busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+    image: ${BUSYBOX_IMAGE}
     command: ["sleep", "infinity"]
     volumeMounts:
     - name: jfr
