@@ -74,7 +74,7 @@ encryption:
 
 # OpenMessaging Benchmark workers
 omb:
-  workerReplicas: 3
+  workerReplicas: 2
   image: quay.io/kroxylicious/kroxylicious-omb:omb-8559989-krox-e329e4d-2@sha256:addb5ed87a1d1ed87e0a2df9223c25b33d25bf8331709c1d372124420572fe3c
   imagePullPolicy: IfNotPresent
   driver: baseline  # Can be 'baseline' or 'proxy'
