@@ -52,6 +52,6 @@ omb:
 
 # Short durations and reduced rate — just enough to confirm the pipeline works
 benchmark:
-  testDurationMinutes: 1
+  testDurationMinutes: 2
   warmupDurationMinutes: 0
   producerRate: 10000
