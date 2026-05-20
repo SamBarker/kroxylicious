@@ -36,7 +36,7 @@ usage() {
 Usage: $(basename "$0") [--cluster-overrides <file>] [--output-dir <dir>]
 
 Options:
-  --cluster-overrides <file>  Helm values for cluster-specific settings
+  --cluster-overrides <file>  Helm values for cluster-specific settings (e.g. vault image)
   --output-dir <dir>          Root directory for all results
                               (default: results/blog-suite-<timestamp>)
   -h, --help                  Show this help
@@ -92,17 +92,23 @@ run_step() {
     fi
 }
 
+# Proxy resource presets — passed as --set flags so cluster-overrides stays
+# cluster-specific (vault image, storage class) rather than run-specific.
+PROXY_1CORE="--set kroxylicious.resources.requests.cpu=1000m --set kroxylicious.resources.limits.cpu=1000m"
+PROXY_4CORE="--set kroxylicious.resources.requests.cpu=4000m --set kroxylicious.resources.limits.cpu=4000m --set kroxylicious.resources.requests.memory=2Gi --set kroxylicious.resources.limits.memory=4Gi"
+
 # ---------------------------------------------------------------------------
-# Post 1 — Multi-topic latency (RF=3, 3 scenarios × 3 workloads, ~3 hours)
+# Post 1 — Multi-topic latency (RF=3, 1-core proxy, 3 scenarios × 3 workloads)
 # ---------------------------------------------------------------------------
 run_step "post1-multi-topic-latency" \
     scripts/run-all-scenarios.sh \
         baseline proxy-no-filters encryption \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
+        ${PROXY_1CORE} \
         "${OUTPUT_DIR}/all-scenarios/"
 
 # ---------------------------------------------------------------------------
-# Post 1 — Rate sweep (RF=3, 1-core proxy, 8k–22k msg/s, 5% steps, ~10 hours)
+# Post 1 — Rate sweep (RF=3, 1-core proxy, 8k–22k msg/s, 5% steps)
 # ---------------------------------------------------------------------------
 run_step "post1-rate-sweep-1core-rf3" \
     scripts/rate-sweep.sh \
@@ -110,8 +116,7 @@ run_step "post1-rate-sweep-1core-rf3" \
         --scenarios baseline,proxy-no-filters,encryption \
         --workload 1topic-1kb \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
-        --set kroxylicious.resources.requests.cpu=1000m \
-        --set kroxylicious.resources.limits.cpu=1000m \
+        ${PROXY_1CORE} \
         --output-dir "${OUTPUT_DIR}/rate-sweep-1core-rf3/"
 
 # ---------------------------------------------------------------------------
@@ -126,8 +131,7 @@ run_step "post2-conn-sweep-encryption-1core-1topic" \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
         --set kafka.replicationFactor=1 \
         --set kafka.minInSyncReplicas=1 \
-        --set kroxylicious.resources.requests.cpu=1000m \
-        --set kroxylicious.resources.limits.cpu=1000m \
+        ${PROXY_1CORE} \
         --output-dir "${OUTPUT_DIR}/conn-sweep-encryption-1core-1topic-rf1/"
 
 run_step "post2-conn-sweep-encryption-4core-1topic" \
@@ -139,6 +143,7 @@ run_step "post2-conn-sweep-encryption-4core-1topic" \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
         --set kafka.replicationFactor=1 \
         --set kafka.minInSyncReplicas=1 \
+        ${PROXY_4CORE} \
         --output-dir "${OUTPUT_DIR}/conn-sweep-encryption-4core-1topic-rf1/"
 
 run_step "post2-conn-sweep-encryption-4core-10topics" \
@@ -150,6 +155,7 @@ run_step "post2-conn-sweep-encryption-4core-10topics" \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
         --set kafka.replicationFactor=1 \
         --set kafka.minInSyncReplicas=1 \
+        ${PROXY_4CORE} \
         --output-dir "${OUTPUT_DIR}/conn-sweep-encryption-4core-10topics-rf1/"
 
 run_step "post2-conn-sweep-no-filters-4core-10topics" \
@@ -161,6 +167,7 @@ run_step "post2-conn-sweep-no-filters-4core-10topics" \
         ${CLUSTER_OVERRIDES_ARG[@]+"${CLUSTER_OVERRIDES_ARG[@]}"} \
         --set kafka.replicationFactor=1 \
         --set kafka.minInSyncReplicas=1 \
+        ${PROXY_4CORE} \
         --output-dir "${OUTPUT_DIR}/conn-sweep-no-filters-4core-10topics-rf1/"
 
 # ---------------------------------------------------------------------------
