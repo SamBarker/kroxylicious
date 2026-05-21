@@ -44,10 +44,10 @@ omb:
         cpu: "500m"
   resources:
     requests:
-      memory: "1Gi"
+      memory: "2Gi"
       cpu: "250m"
     limits:
-      memory: "2Gi"
+      memory: "4Gi"
       cpu: "500m"
 
 # Short durations and reduced rate — just enough to confirm the pipeline works
