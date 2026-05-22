@@ -569,7 +569,7 @@ else
     echo "Removing previous benchmark Job..."
     kubectl delete job omb-benchmark -n "${NAMESPACE}" --ignore-not-found --wait --timeout=60s
     echo "Restarting OMB workers for clean probe..."
-    kubectl delete pod -l app=omb-worker -n "${NAMESPACE}" --wait --timeout=60s
+    kubectl delete pod -l app=omb-worker -n "${NAMESPACE}" --grace-period=30 --wait --timeout=120s
     check_workers_healthy
     reset_topics
 fi
