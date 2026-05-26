@@ -158,25 +158,18 @@ run_step "coeff-4core-100topics" \
 echo ""
 echo "--- CPU coefficient comparison ---"
 
-build_compare_args() {
-    local topics="$1"
-    local workload_label="$2"
-    local args=()
-    for cores in 1 2 4; do
-        local dir="${OUTPUT_DIR}/conn-sweep-encryption-${cores}core-${topics}-rf1/encryption"
-        if [[ -d "${dir}" ]]; then
-            args+=("${cores}-core ${workload_label}:${dir}")
-        fi
-    done
-    echo "${args[@]+"${args[@]}"}"
-}
-
 for topics_dir in 1topic 10topics 100topics; do
     label="${topics_dir/topic/ topic}"
     label="${label/topics/ topics}"
     echo ""
     echo "=== ${label} ==="
-    read -ra compare_args <<< "$(build_compare_args "${topics_dir}" "${label}")"
+    compare_args=()
+    for cores in 1 2 4; do
+        dir="${OUTPUT_DIR}/conn-sweep-encryption-${cores}core-${topics_dir}-rf1/encryption"
+        if [[ -d "${dir}" ]]; then
+            compare_args+=("${cores}-core-${topics_dir}:${dir}")
+        fi
+    done
     if [[ ${#compare_args[@]} -gt 0 ]]; then
         python3 scripts/analyze-cpu-coefficient.py --compare "${compare_args[@]}"
     else
