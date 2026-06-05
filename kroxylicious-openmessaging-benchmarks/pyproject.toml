@@ -1,0 +1,8 @@
+[project]
+name = "kroxylicious-benchmark-analysis"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Analysis scripts for Kroxylicious OMB benchmark results"
+dependencies = [
+    "numpy>=1.24",
+]

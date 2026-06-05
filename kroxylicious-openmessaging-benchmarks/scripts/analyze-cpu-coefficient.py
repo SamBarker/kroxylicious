@@ -33,10 +33,14 @@ An operator can then estimate required proxy CPU as:
 Usage:
     python3 analyze-cpu-coefficient.py <sweep-output-dir> [--skip-first N]
     python3 analyze-cpu-coefficient.py --compare <dir1> [<dir2> ...] [--skip-first N]
+    python3 analyze-cpu-coefficient.py --ols-fit <sizing-sweep-dir> [--skip-first N]
 
     sweep-output-dir  Root of a connection-sweep run, e.g. /tmp/results/conn-sweep/
     --compare         Print a one-row-per-config summary table across multiple directories.
                       Each dir may be prefixed with a label: "label:path"
+    --ols-fit         Fit CPU_mc = a + b × throughput_MB_per_s + c × connections via OLS
+                      regression across a sizing-sweep output directory (1core/2core/4core
+                      subdirs produced by scripts/sizing-sweep.sh). Requires numpy.
     --skip-first N    Fallback: skip the first N CPU snapshots per probe when
                       phase timestamps are absent (default: 10)
 
@@ -204,6 +208,7 @@ def load_probe(probe_dir, skip_first):
         "message_size": meta.get("messageSize") or result.get("messageSize", 1024),
         "producers": meta.get("producersPerTopic") or result.get("producersPerTopic", 1),
         "topics": meta.get("topics", 1),
+        "consumers_per_sub": meta.get("consumerPerSubscription", 1),
         "target": meta.get("targetRate"),
         "all_snapshots": len(snapshots),
         "usable_snapshots": usable,
@@ -363,6 +368,106 @@ def print_comparison_table(compare_args, skip_first):
               f"±{summary['stdev']:>5.1f}  {summary['n']:>3}  {sat_str:>4}  {formula}")
 
 
+def print_ols_fit(sizing_sweep_dir, skip_first):
+    """Fit CPU_mc = a + b*throughput + c*connections for each core allocation."""
+    try:
+        import numpy as np
+    except ImportError:
+        print("Error: numpy is required for --ols-fit. Run via: uv run scripts/analyze-cpu-coefficient.py",
+              file=sys.stderr)
+        sys.exit(1)
+
+    alloc_dirs = []
+    try:
+        for entry in sorted(os.listdir(sizing_sweep_dir)):
+            if re.match(r"^\d+core$", entry):
+                alloc_dirs.append((entry, os.path.join(sizing_sweep_dir, entry)))
+    except OSError as e:
+        print(f"Error reading {sizing_sweep_dir}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not alloc_dirs:
+        print(f"No allocation directories (e.g. 1core, 2core, 4core) found under {sizing_sweep_dir}")
+        print("Run scripts/sizing-sweep.sh first to produce the data.")
+        return
+
+    sizing_rows = []
+
+    for label, alloc_dir in alloc_dirs:
+        print(f"=== {label} ===")
+        probes = find_probes(alloc_dir)
+
+        X_rows = []
+        y_vals = []
+        total = 0
+        saturated = 0
+
+        for _, probe_dir in probes:
+            data = load_probe(probe_dir, skip_first)
+            if data is None:
+                continue
+
+            total += 1
+            achieved = data["achieved_rate"] * data.get("topics", 1)
+            target = data["target"]
+
+            if target is not None and achieved < 0.95 * target:
+                saturated += 1
+                continue
+
+            msg_size = data["message_size"]
+            throughput_mb = (achieved * msg_size * 2) / 1_000_000
+            prod_per_topic = data.get("producers", 1) or 1
+            topics = data.get("topics", 1) or 1
+            consumers_per_sub = data.get("consumers_per_sub", 1) or 1
+            connections = prod_per_topic * topics + consumers_per_sub
+
+            cpu_mc = statistics.mean(data["usable_snapshots"]) * 1000
+
+            X_rows.append([1.0, throughput_mb, float(connections)])
+            y_vals.append(cpu_mc)
+
+        used = len(y_vals)
+        print(f"Points used: {used} / {total}  ({saturated} saturated)")
+
+        if used < 3:
+            print("  Too few points for OLS fit (need >= 3 non-saturated probes)")
+            print()
+            continue
+
+        X = np.array(X_rows)
+        y = np.array(y_vals)
+
+        beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+        a, b, c = beta
+
+        y_pred = X @ beta
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+        r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+
+        n_pts = len(y)
+        p = 3
+        if n_pts > p and ss_res > 0:
+            sigma_sq = ss_res / (n_pts - p)
+            xtx_inv = np.linalg.inv(X.T @ X)
+            std_errs = list(np.sqrt(np.diag(sigma_sq * xtx_inv)))
+        else:
+            std_errs = [float("nan")] * 3
+
+        print(f"  CPU (mc) = {a:.0f} + {b:.1f} × throughput_MB_per_s + {c:.1f} × connections")
+        print(f"  R² = {r_squared:.2f}")
+        print(f"  Std errors: a ± {std_errs[0]:.0f}  b ± {std_errs[1]:.1f}  c ± {std_errs[2]:.1f}")
+        print()
+
+        sizing_rows.append((label, a, b, c))
+
+    if sizing_rows:
+        print("--- Sizing guide formula ---")
+        for label, a, b, c in sizing_rows:
+            print(f"  {label}:  CPU (mc) = {a:.0f} + {b:.0f} × throughput_MB_per_s + {c:.0f} × connections")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Derive proxy CPU sizing coefficient from connection-sweep results"
@@ -379,6 +484,12 @@ def main():
         help="Compare multiple sweep directories (one row each). Each entry may be 'label:path'.",
     )
     parser.add_argument(
+        "--ols-fit",
+        metavar="DIR",
+        help="Fit CPU = a + b*throughput + c*connections via OLS for each core allocation "
+             "in a sizing-sweep output directory (produced by scripts/sizing-sweep.sh). Requires numpy.",
+    )
+    parser.add_argument(
         "--skip-first",
         type=int,
         default=10,
@@ -387,13 +498,16 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.compare and args.sweep_dir:
-        parser.error("Specify either a sweep_dir or --compare, not both.")
-    if not args.compare and not args.sweep_dir:
-        parser.error("Specify a sweep_dir or use --compare.")
+    modes = sum([bool(args.compare), bool(args.sweep_dir), bool(args.ols_fit)])
+    if modes > 1:
+        parser.error("Specify at most one of: sweep_dir, --compare, --ols-fit.")
+    if modes == 0:
+        parser.error("Specify a sweep_dir, --compare, or --ols-fit.")
 
     if args.compare:
         print_comparison_table(args.compare, args.skip_first)
+    elif args.ols_fit:
+        print_ols_fit(args.ols_fit, args.skip_first)
     else:
         print_full_table(args.sweep_dir, args.skip_first)
 
