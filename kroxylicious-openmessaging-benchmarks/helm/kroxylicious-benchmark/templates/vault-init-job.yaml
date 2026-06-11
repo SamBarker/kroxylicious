@@ -38,26 +38,36 @@ spec:
         - |
           set -e
 
+          VAULT_URL="http://vault:8200"
+          AUTH_HEADER="X-Vault-Token: ${VAULT_TOKEN}"
+
           echo "Waiting for Vault to be ready..."
-          until wget -qO- http://vault:8200/v1/sys/health 2>/dev/null | grep -q '"sealed":false'; do
+          until wget -qO- "${VAULT_URL}/v1/sys/health" 2>/dev/null | grep -q '"sealed":false'; do
             echo "  Vault not ready yet, retrying in 2s..."
             sleep 2
           done
           echo "Vault is ready."
 
           echo "Enabling transit secrets engine..."
-          if vault secrets list | grep -q '^transit/'; then
+          if wget -qO- --header "${AUTH_HEADER}" "${VAULT_URL}/v1/sys/mounts" 2>/dev/null | grep -q '"transit/"'; then
             echo "  Transit engine already enabled."
           else
-            vault secrets enable transit
+            wget -qO /dev/null --header "${AUTH_HEADER}" \
+                --header "Content-Type: application/json" \
+                --post-data '{"type":"transit"}' \
+                "${VAULT_URL}/v1/sys/mounts/transit"
             echo "  Transit engine enabled."
           fi
 
           echo "Creating KEK '{{ .Values.encryption.kekName }}'..."
-          if vault read "transit/keys/{{ .Values.encryption.kekName }}" >/dev/null 2>&1; then
+          if wget -qO- --header "${AUTH_HEADER}" \
+              "${VAULT_URL}/v1/transit/keys/{{ .Values.encryption.kekName }}" 2>/dev/null | grep -q '"name"'; then
             echo "  KEK already exists."
           else
-            vault write -f "transit/keys/{{ .Values.encryption.kekName }}"
+            wget -qO /dev/null --header "${AUTH_HEADER}" \
+                --header "Content-Type: application/json" \
+                --post-data '{}' \
+                "${VAULT_URL}/v1/transit/keys/{{ .Values.encryption.kekName }}"
             echo "  KEK created."
           fi
 
