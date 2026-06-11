@@ -39,7 +39,7 @@ spec:
           set -e
 
           echo "Waiting for Vault to be ready..."
-          until vault status 2>/dev/null; do
+          until wget -qO- http://vault:8200/v1/sys/health 2>/dev/null | grep -q '"sealed":false'; do
             echo "  Vault not ready yet, retrying in 2s..."
             sleep 2
           done
