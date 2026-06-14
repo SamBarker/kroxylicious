@@ -395,14 +395,20 @@ def print_ols_fit(sizing_sweep_dir, skip_first):
 
     for label, alloc_dir in alloc_dirs:
         print(f"=== {label} ===")
-        probes = find_probes(alloc_dir)
+        # sizing-sweep writes result.json directly into the probe dir (not into a
+        # producers-N subdir like connection-sweep does), so discover by file presence.
+        probes = [
+            (0, root)
+            for root, _, files in os.walk(alloc_dir)
+            if "result.json" in files
+        ]
 
         X_rows = []
         y_vals = []
         total = 0
         saturated = 0
 
-        for _, probe_dir in probes:
+        for _, probe_dir in sorted(probes, key=lambda x: x[1]):
             data = load_probe(probe_dir, skip_first)
             if data is None:
                 continue
