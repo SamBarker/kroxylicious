@@ -1,0 +1,18 @@
+#
+# Copyright Kroxylicious Authors.
+#
+# Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Proxy allocation: 2 CPU cores
+# workerThreadCount pins Netty IO threads to 2×allocated rather than 2×node CPUs.
+kroxylicious:
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+  network:
+    proxy:
+      workerThreadCount: 4

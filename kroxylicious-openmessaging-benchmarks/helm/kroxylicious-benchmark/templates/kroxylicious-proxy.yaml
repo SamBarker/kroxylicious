@@ -10,6 +10,10 @@ metadata:
   name: benchmark-proxy
 spec:
   replicas: {{ .Values.kroxylicious.replicas }}
+  {{- if .Values.kroxylicious.network }}
+  network:
+    {{- toYaml .Values.kroxylicious.network | nindent 4 }}
+  {{- end }}
   infrastructure:
     proxyContainer:
       resources:

@@ -17,8 +17,10 @@ set -uo pipefail
 # Together the two phases decouple per-byte AES-GCM overhead (b) from per-connection
 # overhead (c) so both coefficients can be estimated independently via OLS regression.
 #
-# Runs all three CPU allocations (1000m, 2000m, 4000m) in sequence, each with a full
-# deploy + teardown cycle.
+# Runs all three CPU allocations (1-core, 2-core, 4-core) in sequence, each with a full
+# deploy + teardown cycle. Allocation profiles in helm/kroxylicious-benchmark/allocations/
+# set CPU resources and workerThreadCount together so Netty IO threads scale with the
+# allocation rather than defaulting to 2×node CPUs.
 #
 # Usage: scripts/sizing-sweep.sh [--cluster-overrides <file>] [--output-dir <dir>] [--set <k=v>]
 #
@@ -44,6 +46,8 @@ Orthogonal throughput + connection sweep to fit a proxy CPU sizing model.
   Phase 2: vary producers/topic (8000 msg/s total, 1 consumer/subscription)
 
   Runs all three CPU allocations (1-core, 2-core, 4-core) in sequence.
+  Allocation profiles (helm/kroxylicious-benchmark/allocations/) set CPU resources
+  and Netty workerThreadCount together.
 
 Options:
   --cluster-overrides <file>  Helm values for cluster-specific settings
@@ -127,24 +131,20 @@ CLUSTER_OVERRIDES_ARG=()
 [[ -n "${CLUSTER_OVERRIDES}" ]] && CLUSTER_OVERRIDES_ARG=(--cluster-overrides "${CLUSTER_OVERRIDES}")
 
 CORE_LABELS=(1core 2core 4core)
-CORE_CPUS=(1000m 2000m 4000m)
 
 for ci in 0 1 2; do
     LABEL="${CORE_LABELS[$ci]}"
-    CPU="${CORE_CPUS[$ci]}"
     ALLOC_DIR="${OUTPUT_DIR}/${LABEL}"
+    ALLOC_PROFILE="${SCRIPT_DIR}/../helm/kroxylicious-benchmark/allocations/${LABEL}.yaml"
 
     echo ""
     echo "=========================================="
-    echo "Allocation: ${LABEL}  (${CPU} CPU)"
+    echo "Allocation: ${LABEL}"
     echo "=========================================="
 
-    # --set args applied to every probe in this allocation
+    # args applied to every probe in this allocation
     ALLOC_SET_ARGS=(
-        --set "kroxylicious.resources.requests.cpu=${CPU}"
-        --set "kroxylicious.resources.limits.cpu=${CPU}"
-        --set kroxylicious.resources.requests.memory=2Gi
-        --set kroxylicious.resources.limits.memory=4Gi
+        --profile "${ALLOC_PROFILE}"
         --set kafka.replicationFactor=1
         --set kafka.minInSyncReplicas=1
     )
