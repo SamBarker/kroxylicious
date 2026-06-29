@@ -4,17 +4,17 @@
 # Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
 #
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1782366411@sha256:44bc70ef6e6ea9a70e353be97f4722e10358d09fbb9494ca943b2a641049690e
+FROM registry.access.redhat.com/hi/openjdk:21.0.11-runtime-builder@sha256:c9ebda3dfc26f258cd39647cf41f5204a98ff3305950baf2cccab7e524621a98 AS setup
 
 ARG TARGETOS=linux
 ARG TARGETARCH
-ARG JAVA_VERSION=21
-ARG KROXYLICIOUS_VERSION
 ARG CONTAINER_USER=kroxylicious
 ARG CONTAINER_USER_UID=185
 
 USER root
-WORKDIR /opt/kroxylicious-webhook
+
+RUN dnf5 install -y curl \
+    && dnf5 clean all
 
 # Download Tini
 ARG TINI_VERSION=v0.19.0
@@ -41,15 +41,23 @@ RUN set -ex; \
     fi; \
     chmod +x ${TINI_DEST}
 
-RUN microdnf --setopt=install_weak_deps=0 --setopt=tsflags=nodocs install -y \
-                java-${JAVA_VERSION}-openjdk-headless \
-                openssl \
-                shadow-utils \
-    && if [[ -n "${CONTAINER_USER}" && "${CONTAINER_USER}" != "root" ]] ; then groupadd -r -g "${CONTAINER_USER_UID}" "${CONTAINER_USER}" && useradd -m -r -u "${CONTAINER_USER_UID}" -g "${CONTAINER_USER}" "${CONTAINER_USER}"; fi \
-    && microdnf remove -y shadow-utils \
-    && microdnf clean all
+RUN groupadd -r -g "${CONTAINER_USER_UID}" "${CONTAINER_USER}" \
+    && useradd -m -r -u "${CONTAINER_USER_UID}" -g "${CONTAINER_USER}" "${CONTAINER_USER}"
 
-ENV JAVA_HOME=/usr/lib/jvm/jre-${JAVA_VERSION}
+FROM registry.access.redhat.com/hi/openjdk:21.0.11-runtime-builder@sha256:c9ebda3dfc26f258cd39647cf41f5204a98ff3305950baf2cccab7e524621a98
+
+ARG KROXYLICIOUS_VERSION
+ARG CONTAINER_USER=kroxylicious
+ARG CONTAINER_USER_UID=185
+
+USER root
+
+COPY --from=setup /etc/passwd /etc/passwd
+COPY --from=setup /etc/group /etc/group
+COPY --from=setup /home/kroxylicious /home/kroxylicious
+COPY --from=setup /usr/bin/tini /usr/bin/tini
+
+WORKDIR /opt/kroxylicious-webhook
 
 COPY target/kroxylicious-admission-${KROXYLICIOUS_VERSION}-app/kroxylicious-admission-${KROXYLICIOUS_VERSION}/ .
 
