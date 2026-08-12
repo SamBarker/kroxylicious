@@ -44,6 +44,11 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
         </dependency>
+        <!-- TODO #4578: review scope; slf4j-api is needed for Kafka classes copied into io.kroxylicious namespace -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
 
         <!-- third party dependencies - test -->
         <!-- https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-slf4j-impl -->
@@ -52,10 +57,12 @@
             <artifactId>log4j-slf4j2-impl</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Required for MessageUtil.jsonNodeTo* methods used by *DataJsonConverter classes.
+             Whether this belongs in kroxylicious-api or a separate module is an open question;
+             see issue #4578 / proposal 116 discussion. -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
