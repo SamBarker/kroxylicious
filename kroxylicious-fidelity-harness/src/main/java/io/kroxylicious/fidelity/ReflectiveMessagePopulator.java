@@ -13,8 +13,10 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -50,27 +52,16 @@ public final class ReflectiveMessagePopulator {
     private static final Set<String> BASE_RECORDS_CLASS_NAMES = Set.of(
             "io.kroxylicious.kafka.common.record.internal.BaseRecords",
             "org.apache.kafka.common.record.internal.BaseRecords");
+    private static final Set<String> TAGGED_FIELDS_TYPE_NAMES = Set.of(
+            "io.kroxylicious.kafka.common.protocol.types.TaggedFields",
+            "org.apache.kafka.common.protocol.types.TaggedFields");
 
     private final Random random;
-    private final Short messageVersion;
+    private final short messageVersion;
 
-    private ReflectiveMessagePopulator(Random random, Short messageVersion) {
+    private ReflectiveMessagePopulator(Random random, short messageVersion) {
         this.random = random;
         this.messageVersion = messageVersion;
-    }
-
-    /**
-     * Populates {@code message}'s fields with deterministic non-default values derived from {@code seed}.
-     * No schema/version information is used, so a primitive field left at a constructor-assigned
-     * non-zero default (a schema-declared default value) is not overwritten, on the assumption that such
-     * a value is exactly the one the field must hold below the version it was introduced in.
-     *
-     * @param message the instance to populate
-     * @param seed the seed controlling the generated values
-     */
-    @SuppressFBWarnings("PREDICTABLE_RANDOM") // Deterministic pseudorandomness is the point: reproducible test fixtures, not security relevant
-    public static void populate(Object message, long seed) {
-        new ReflectiveMessagePopulator(new Random(seed), null).populate(message);
     }
 
     /**
@@ -89,34 +80,27 @@ public final class ReflectiveMessagePopulator {
     }
 
     private void populate(Object message) {
-        Set<String> schemaFieldNames = messageVersion == null ? null : schemaFieldNamesAt(message.getClass(), messageVersion);
-        for (Field field : message.getClass().getDeclaredFields()) {
+        Set<String> schemaFieldNames = schemaFieldNamesAt(message.getClass(), messageVersion);
+        // Fields outside the target version's schema (not yet introduced, or dropped again before
+        // this version - specs aren't purely additive) must keep their constructor default: it's the
+        // only value the generated write() accepts for them at this version.
+        Arrays.stream(message.getClass().getDeclaredFields()).filter(field -> {
             int modifiers = field.getModifiers();
             boolean generatorInternal = Modifier.isStatic(modifiers) || Modifier.isPrivate(modifiers);
-            boolean outsideSchema = schemaFieldNames != null && !schemaFieldNames.contains(field.getName());
-            // Fields outside the target version's schema (not yet introduced, or dropped again before
-            // this version - specs aren't purely additive) must keep their constructor default: it's the
-            // only value the generated write() accepts for them at this version.
-            if (generatorInternal || outsideSchema) {
-                continue;
-            }
-            field.setAccessible(true);
-            Class<?> type = field.getType();
-            try {
-                // Without schema information we can't tell whether a primitive's constructor-assigned
-                // non-zero value (e.g. an enum-like byte defaulting to 1) is a schema-declared default
-                // that write() requires below its introduction version, so it's left alone in that case.
-                // Once schemaFieldNames has already restricted us to fields the target version's schema
-                // actually declares, no such guard is needed - the field is safe to overwrite outright.
-                boolean unknownSchemaPrimitiveDefault = schemaFieldNames == null && type.isPrimitive() && !isDefaultPrimitiveValue(type, field.get(message));
-                if (unknownSchemaPrimitiveDefault) {
-                    continue;
-                }
-                field.set(message, valueFor(field.getGenericType()));
-            }
-            catch (IllegalAccessException e) {
-                throw new IllegalStateException("Failed to populate field " + field, e);
-            }
+            boolean outsideSchema = !schemaFieldNames.contains(field.getName());
+            return !generatorInternal && !outsideSchema;
+        }).forEach(field -> invokeSetterForField(message, field));
+    }
+
+    private void invokeSetterForField(Object message, Field field) {
+        String name = field.getName();
+        Class<?> type = field.getType();
+        try {
+            Method setter = message.getClass().getMethod("set" + capitalize(name), type);
+            setter.invoke(message, valueFor(field.getGenericType()));
+        }
+        catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Failed to populate field " + field, e);
         }
     }
 
@@ -137,14 +121,36 @@ public final class ReflectiveMessagePopulator {
             Set<String> names = new HashSet<>();
             for (Object boundField : boundFields) {
                 Object fieldDef = boundField.getClass().getField("def").get(boundField);
-                String snakeCaseName = (String) fieldDef.getClass().getField("name").get(fieldDef);
-                names.add(toCamelCase(snakeCaseName));
+                addFieldNames(fieldDef, names);
             }
             return names;
         }
         catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Failed to read schema fields for " + clazz + " at version " + version, e);
         }
+    }
+
+    /**
+     * A top-level {@code Field} contributes its own name, except a {@code TaggedFieldsSection}, whose
+     * name is the synthetic {@code "_tagged_fields"} marker rather than a real Java field - its actual
+     * schema-declared fields (e.g. {@code replicaDirectoryId}) live one level down, keyed by tag, inside
+     * its {@code TaggedFields} type.
+     */
+    private static void addFieldNames(Object fieldDef, Set<String> names) throws ReflectiveOperationException {
+        Object type = fieldDef.getClass().getField("type").get(fieldDef);
+        if (TAGGED_FIELDS_TYPE_NAMES.contains(type.getClass().getName())) {
+            Map<?, ?> taggedFields = (Map<?, ?>) type.getClass().getMethod("fields").invoke(type);
+            for (Object taggedFieldDef : taggedFields.values()) {
+                addFieldNames(taggedFieldDef, names);
+            }
+            return;
+        }
+        String snakeCaseName = (String) fieldDef.getClass().getField("name").get(fieldDef);
+        names.add(toCamelCase(snakeCaseName));
+    }
+
+    private static String capitalize(String name) {
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
     private static String toCamelCase(String snakeCaseName) {
@@ -155,28 +161,6 @@ public final class ReflectiveMessagePopulator {
             camelCase.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
         }
         return camelCase.toString();
-    }
-
-    private static boolean isDefaultPrimitiveValue(Class<?> type, Object currentValue) {
-        if (type == short.class) {
-            return ((Short) currentValue) == 0;
-        }
-        if (type == int.class) {
-            return ((Integer) currentValue) == 0;
-        }
-        if (type == long.class) {
-            return ((Long) currentValue) == 0L;
-        }
-        if (type == byte.class) {
-            return ((Byte) currentValue) == 0;
-        }
-        if (type == boolean.class) {
-            return !((Boolean) currentValue);
-        }
-        if (type == double.class) {
-            return ((Double) currentValue) == 0.0;
-        }
-        throw new IllegalStateException("Unhandled primitive type " + type);
     }
 
     private Object valueFor(Type type) {

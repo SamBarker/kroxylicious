@@ -21,13 +21,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ReflectiveMessagePopulatorTest {
 
+    private static final long SEED = 42L;
+
     @Test
     void shouldPopulateFlatPrimitiveAndStringFields() {
         // Given
         RequestHeaderData message = new RequestHeaderData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.requestApiKey()).isNotZero();
@@ -42,7 +44,7 @@ class ReflectiveMessagePopulatorTest {
         org.apache.kafka.common.message.RequestHeaderData message = new org.apache.kafka.common.message.RequestHeaderData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.requestApiKey()).isNotZero();
@@ -57,7 +59,7 @@ class ReflectiveMessagePopulatorTest {
         LeaveGroupRequestData message = new LeaveGroupRequestData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.groupId()).isNotNull().isNotEmpty();
@@ -72,7 +74,7 @@ class ReflectiveMessagePopulatorTest {
         RequestHeaderData message = new RequestHeaderData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.unknownTaggedFields()).isEmpty();
@@ -84,7 +86,7 @@ class ReflectiveMessagePopulatorTest {
         AlterClientQuotasRequestData.OpData message = new AlterClientQuotasRequestData.OpData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.key()).isNotNull().isNotEmpty();
@@ -98,7 +100,7 @@ class ReflectiveMessagePopulatorTest {
         FetchSnapshotRequestData.PartitionSnapshot message = new FetchSnapshotRequestData.PartitionSnapshot();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.position()).isNotZero();
@@ -111,12 +113,12 @@ class ReflectiveMessagePopulatorTest {
         // Given
         DescribeClusterRequestData message = new DescribeClusterRequestData();
 
-        // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        // When - endpointType is only part of the schema from version 1 onward; at version 0 it's outside
+        // the schema, so populate() must leave it at its constructor-assigned default rather than fabricate
+        // a value write() would then refuse to serialise below version 1.
+        ReflectiveMessagePopulator.populate(message, (short) 0, SEED);
 
-        // Then - endpointType defaults to (byte) 1 in the constructor; that specific value is the only
-        // one write() accepts below the version it was introduced in, so populate() must leave it alone
-        // rather than overwrite it with an arbitrary non-default value.
+        // Then
         assertThat(message.endpointType()).isEqualTo((byte) 1);
     }
 
@@ -126,7 +128,7 @@ class ReflectiveMessagePopulatorTest {
         ProduceRequestData.PartitionProduceData message = new ProduceRequestData.PartitionProduceData();
 
         // When
-        ReflectiveMessagePopulator.populate(message, 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then - BaseRecords is an interface with no general-purpose implementation to populate
         // reflectively; substituting the canonical empty records is the same kind of leaf-value
@@ -142,7 +144,7 @@ class ReflectiveMessagePopulatorTest {
         // When - v3AndBelowTransactionalId and its siblings were dropped from the schema by version 4,
         // replaced by the transactions field; both are still declared on the Java class (for backward
         // compatible reads) but only one set is actually part of the highest version's wire schema.
-        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), 42L);
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(message.v3AndBelowTransactionalId()).isEmpty();
@@ -156,8 +158,8 @@ class ReflectiveMessagePopulatorTest {
         RequestHeaderData second = new RequestHeaderData();
 
         // When
-        ReflectiveMessagePopulator.populate(first, 42L);
-        ReflectiveMessagePopulator.populate(second, 42L);
+        ReflectiveMessagePopulator.populate(first, first.highestSupportedVersion(), SEED);
+        ReflectiveMessagePopulator.populate(second, second.highestSupportedVersion(), SEED);
 
         // Then
         assertThat(second).usingRecursiveComparison().isEqualTo(first);
