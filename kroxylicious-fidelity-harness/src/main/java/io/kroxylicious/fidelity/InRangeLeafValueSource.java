@@ -20,6 +20,13 @@ public final class InRangeLeafValueSource implements LeafValueSource {
     private static final String UUID_RELATIVE_NAME = "common.Uuid";
     private static final String BASE_RECORDS_RELATIVE_NAME = "common.record.internal.BaseRecords";
 
+    /**
+     * Construct an instance to provide values which are within bounds for each Kafka Schema type.
+     */
+    public InRangeLeafValueSource() {
+        super();
+    }
+
     @Override
     public Optional<Object> valueFor(Class<?> javaType, FieldPath fieldPath, String schemaTypeName, RandomGenerator random) {
         return scalarValueFor(javaType, schemaTypeName, random)
