@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.kafka.common.message.AddPartitionsToTxnRequestData;
+import io.kroxylicious.kafka.common.message.AddRaftVoterRequestData;
 import io.kroxylicious.kafka.common.message.AlterClientQuotasRequestData;
 import io.kroxylicious.kafka.common.message.DescribeClusterRequestData;
 import io.kroxylicious.kafka.common.message.FetchSnapshotRequestData;
@@ -149,6 +150,19 @@ class ReflectiveMessagePopulatorTest {
         // Then
         assertThat(message.v3AndBelowTransactionalId()).isEmpty();
         assertThat((Iterable<?>) message.transactions()).isNotEmpty();
+    }
+
+    @Test
+    void shouldPopulateUint16FieldsWithinRange() {
+        // Given
+        AddRaftVoterRequestData.Listener message = new AddRaftVoterRequestData.Listener();
+
+        // When
+        ReflectiveMessagePopulator.populate(message, message.highestSupportedVersion(), SEED);
+
+        // Then - port is wire-typed UINT16 (an unsigned short); the generated setter rejects values
+        // outside 0..65535, unlike a plain INT32 field where any int is valid.
+        assertThat(message.port()).isBetween(0, 65535);
     }
 
     @Test

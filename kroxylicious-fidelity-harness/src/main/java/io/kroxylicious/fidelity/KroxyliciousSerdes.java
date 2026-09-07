@@ -13,10 +13,16 @@ import io.kroxylicious.kafka.common.protocol.MessageSizeAccumulator;
 import io.kroxylicious.kafka.common.protocol.ObjectSerializationCache;
 
 /**
- * Serializes and deserializes {@code io.kroxylicious.kafka.common.protocol.Message} instances to and
- * from raw bytes, using the standard two-pass size-then-write protocol.
+ * Everything scoped to Kroxylicious's mirror of Kafka's generated protocol classes
+ * ({@code io.kroxylicious.kafka.*}) - the counterpart to {@link KafkaSerdes}: serializing/deserializing
+ * {@code Message} instances to and from raw bytes (the standard two-pass size-then-write protocol), and
+ * recognising a specific type under this namespace by name, since Kroxylicious's and Kafka's generated
+ * classes are structurally identical but otherwise unrelated, with no common supertype to
+ * {@code instanceof} against.
  */
 public final class KroxyliciousSerdes {
+
+    private static final String ROOT = "io.kroxylicious.kafka.";
 
     private KroxyliciousSerdes() {
     }
@@ -55,5 +61,29 @@ public final class KroxyliciousSerdes {
         catch (RuntimeException e) {
             return new ReadResult<>(message, accessor.remaining(), e);
         }
+    }
+
+    /**
+     * Builds the fully-qualified class name under this namespace for a name relative to it.
+     *
+     * @param relativeName the name relative to {@code io.kroxylicious.kafka}, e.g. {@code "common.Uuid"}
+     * @return the fully-qualified class name under this namespace
+     */
+    public static String apiType(String relativeName) {
+        return ROOT + relativeName;
+    }
+
+    /**
+     * Tests whether a class is exactly the type named by a name relative to this namespace.
+     *
+     * @param clazz the class to test
+     * @param relativeName the name relative to {@code io.kroxylicious.kafka}, e.g. {@code "common.Uuid"}
+     * @return true if {@code clazz} is exactly the type named by {@code relativeName} under this namespace
+     */
+    @SuppressWarnings("java:S1872") // No common supertype exists to instanceof against: Kroxylicious's and
+    // Kafka's generated protocol classes are structurally identical but unrelated types, matched here by
+    // fully-qualified name on purpose.
+    public static boolean isApiType(Class<?> clazz, String relativeName) {
+        return clazz.getName().equals(apiType(relativeName));
     }
 }

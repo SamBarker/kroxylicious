@@ -8,8 +8,38 @@ package io.kroxylicious.fidelity;
 import java.util.List;
 
 import org.apache.kafka.common.message.RequestHeaderData;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class KafkaSerdesTest extends AbstractSerdesTest<RequestHeaderData> {
+
+    @Test
+    void shouldBuildFullyQualifiedApiTypeName() {
+        // When
+        String name = KafkaSerdes.apiType("common.Uuid");
+
+        // Then
+        assertThat(name).isEqualTo("org.apache.kafka.common.Uuid");
+    }
+
+    @Test
+    void shouldMatchTheNamedApiType() {
+        // When / Then
+        assertThat(KafkaSerdes.isApiType(org.apache.kafka.common.Uuid.class, "common.Uuid")).isTrue();
+    }
+
+    @Test
+    void shouldNotMatchAnUnrelatedType() {
+        // When / Then
+        assertThat(KafkaSerdes.isApiType(String.class, "common.Uuid")).isFalse();
+    }
+
+    @Test
+    void shouldNotMatchTheOtherNamespacesType() {
+        // When / Then
+        assertThat(KafkaSerdes.isApiType(io.kroxylicious.kafka.common.Uuid.class, "common.Uuid")).isFalse();
+    }
 
     private static RequestHeaderData newMessage() {
         return new RequestHeaderData();
